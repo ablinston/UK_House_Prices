@@ -1,0 +1,5 @@
+outs:
+- md5: bf75cbb812519e67aac372a8bbc80859
+  size: 6968777
+  hash: md5
+  path: uk_hpi_data.parquet

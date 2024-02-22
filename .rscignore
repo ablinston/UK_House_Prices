@@ -1,0 +1,6 @@
+.dvc/*
+.git/*
+.idea/*
+.ipynb_checkpoints/*
+.spyproject/*
+raw_data/*

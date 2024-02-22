@@ -1,0 +1,5 @@
+outs:
+- md5: dbfe3b82db852f675e095124d66a5aaf
+  size: 3611
+  hash: md5
+  path: lad_list.parquet

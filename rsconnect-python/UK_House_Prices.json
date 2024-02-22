@@ -1,0 +1,12 @@
+{
+    "https://api.shinyapps.io": {
+        "server_url": "https://api.shinyapps.io",
+        "filename": "C:\\Users\\Andy\\Documents\\UK_House_Prices",
+        "app_url": "https://ablinston.shinyapps.io/uk_house_prices/",
+        "app_id": 9916255,
+        "app_guid": null,
+        "title": "UK_House_Prices",
+        "app_mode": "python-shiny",
+        "app_store_version": 1
+    }
+}

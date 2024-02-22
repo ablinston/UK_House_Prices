@@ -1,0 +1,6 @@
+UK_house_price_stats_source: http://publicdata.landregistry.gov.uk/market-trend-data/house-price-index-data/UK-HPI-full-file-YEAR-MONTH.csv
+UK_geojson_source: https://geoportal.statistics.gov.uk/datasets/lad-dec-2018-boundaries-gb-bfc/explore
+UK_geojson_filename: Local_Authority_Districts_May_2023_UK_BUC_V2_-7390714061867823479.geojson
+UK_geojson_highres_filename: Local_Authority_Districts_May_2023_UK_BGC_V2_-6664827264414594220.geojson
+UK_cpi_source: https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/consumerpriceindices/current/
+UK_cpi_filename: mm23.csv
