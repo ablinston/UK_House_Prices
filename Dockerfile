@@ -20,14 +20,17 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && \
     python3 get-pip.py && \
     rm get-pip.py
 
-# Copy requirements.txt file
-COPY requirements.txt /app/requirements.txt
+# Copy whole directory to the container
+COPY . /app/
 
 # Set working directory
 WORKDIR /app
 
 # Install Python library dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose the port
+EXPOSE 3838
 
 # Set entrypoint or default command if needed
 ENTRYPOINT ["python"]
