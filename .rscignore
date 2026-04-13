@@ -1,6 +1,11 @@
-.dvc/*
-.git/*
-.idea/*
-.ipynb_checkpoints/*
-.spyproject/*
-raw_data/*
+.dvc
+.git
+.idea
+.ipynb_checkpoints
+.spyproject
+raw_data
+venv
+.vscode
+*.bat
+*.dvc
+diagnose_missing_areas.py

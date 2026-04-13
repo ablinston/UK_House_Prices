@@ -1,4 +1,5 @@
-CALL %0\..\venv\Scripts\activate.bat
+@echo off
 
-shiny run --reload %0\..\app.py
+CALL %~dp0venv\Scripts\activate.bat
 
+shiny run --reload %~dp0app.py
