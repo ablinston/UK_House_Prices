@@ -7,6 +7,9 @@ exec(open('global.py').read())
 gb_geojson = gp.read_file('raw_data/' + config['UK_geojson_filename'])
 gb_geojson_highres = gp.read_file('raw_data/' + config['UK_geojson_highres_filename'])
 
+# Auto-detect the LAD code column (e.g. LAD23CD, LAD24CD, LAD25CD)
+lad_cd_col = [c for c in gb_geojson.columns if c.startswith('LAD') and c.endswith('CD')][0]
+
 for geojson in [gb_geojson, gb_geojson_highres]:
 
     # Convert the coordinates from a projected coordinate system to longitude and latitude
@@ -15,14 +18,14 @@ for geojson in [gb_geojson, gb_geojson_highres]:
     gb_geojson_reprojected = geojson.to_crs({'init': 'epsg:4326'})
     
     # Set the id's of the area's to be the LAD codes and keep a list of codes
-    gb_geojson_reprojected['ID'] = gb_geojson_reprojected['LAD23CD']
+    gb_geojson_reprojected['ID'] = gb_geojson_reprojected[lad_cd_col]
     
     # Convert the final object to a dictionary
     gb_geojson_final = j.loads(gb_geojson_reprojected.to_json())
     
     # Recode the id's as the LAD code
     for item in gb_geojson_final['features']:
-        item['id'] = item['properties']['LAD23CD']
+        item['id'] = item['properties'][lad_cd_col]
     
     # Save the output for the model
     if geojson.equals(gb_geojson):
