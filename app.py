@@ -41,7 +41,7 @@ region_list = lad_list.merge(uk_hpi_data[['AreaCode', 'RegionName']].drop_duplic
 region_list.sort_values(by = 'RegionName', inplace = True)
     
 app_ui = ui.page_fluid(
-    ui.head_content(ui.include_css("app/custom.css")),
+    ui.head_content(ui.include_css("www/custom.css")),
     ui.row(
         ui.column(6,
             ui.div(ui.h2('House Price Changes Heatmap'),
@@ -285,7 +285,7 @@ def server(input, output, session):
         years = (input.date_range()[1] - input.date_range()[0]).days / 365
         df['Annualised'] = ((((df['Total'] / 100 + 1) ** (1 / years)) - 1) * 100).round(1)
         
-        return render.DataGrid(df)
+        return render.DataTable(df)
 
     # Create time series chart for local authority
     @output

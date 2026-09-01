@@ -6,6 +6,8 @@
 raw_data
 venv
 .vscode
+__pycache__
+*.pyc
 *.bat
 *.dvc
 diagnose_missing_areas.py
