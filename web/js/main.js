@@ -8,7 +8,7 @@ import { loadMeta, loadType, isLoaded, price, growth, growthByArea, annualise, c
 import { createMap } from './map.js';
 import { createChart } from './chart.js';
 
-const DEFAULT_AREA_CODE = 'S12000036';   // City of Edinburgh
+const DEFAULT_AREA_CODE = 'E08000003';   // Manchester
 const DEFAULT_START = '2005-01';
 const THUMB = 16;                        // matches the slider thumb in style.css
 
@@ -251,9 +251,13 @@ function populateControls() {
 	state.area = defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
 
-	el.topbarMeta.textContent = `Data to ${meta.monthLabels[last]}`;
+	// Two genuinely different dates, so both are stated in full rather than
+	// abbreviated to an ambiguous "updated": how far the price data runs, and
+	// which month's money real prices are expressed in.
+	el.topbarMeta.textContent = `House prices to ${meta.monthLabels[last]}`;
 	el.basisNote.textContent =
-		`Real prices in ${meta.cpiBase} money · Updated ${meta.generated}`;
+		`House price data runs to ${meta.monthLabels[last]}. ` +
+		`Real prices are shown in ${meta.cpiBase} money, the latest month of CPI data.`;
 }
 
 async function start() {
