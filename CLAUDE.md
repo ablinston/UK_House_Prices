@@ -4,37 +4,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Python **Shiny** (`shiny`/`shinywidgets`) web app that visualizes UK house price changes at Local Authority District (LAD) level: a choropleth map (via `ipyleaflet`) alongside per-area time series (via `plotly`), built from the Land Registry UK House Price Index and ONS CPI data.
+An interactive map of UK house price changes at Local Authority District level, built from the Land Registry UK House Price Index and ONS CPI data.
+
+The repo has two decoupled halves:
+
+- **A Python data pipeline** (`src/`, `functions/`, `global.py`) that scrapes and processes the source data. Run locally, roughly monthly.
+- **A static website** (`web/`) — plain HTML/CSS/JS with no build step, no framework and no server-side code. All computation happens in the browser.
+
+This was converted from a Shiny for Python app. There is no longer any Python in the serving path; do not reintroduce one.
 
 ## Commands
 
 Activate the venv first (Windows): `venv\Scripts\activate.bat`
 
-- **Run the app locally**: `run_app_locally.bat`, or directly `shiny run --reload app.py`
-- **Rebuild the data pipeline** (scrape HPI/CPI data, process geojson, produce the parquet/geojson files under `data/`): `python src\00_pipeline.py`
-  - This just chains the numbered scripts in `src/` in order (01 scrape HPI → 02 scrape CPI → 03 process geojson → 04 process HPI → 05 process CPI). Run an individual `src/0N_*.py` script directly to redo just one step.
-- **Pull data instead of regenerating it**: `dvc pull` (see Data below)
-- **Build the Docker image**: `create_docker_image.bat` (builds `ablinston/uk_house_prices`)
-- **Deploy to shinyapps.io**: `deploy_app.bat` — stages a minimal bundle (app code + `data/`, `www/`, `functions/`, no `.dvc`/dotfiles/`__pycache__`) into `C:\tmp_deploy` and calls `rsconnect deploy shiny`. Read the comment block at the top of the script before changing `DEPLOY_MODE`/`APP_ID` — shinyapps.io app state (new vs. update) is easy to get wrong and the script documents the recovery steps.
+- **Preview the site**: `run_website_locally.bat` → <http://localhost:8000> (serves `web/` via `python -m http.server`; no build, just refresh after edits)
+- **Full data refresh**: `python src\00_pipeline.py` — chains steps 01→06
+- **Regenerate web assets only**: `python src\06_export_web_data.py`
+- **Fetch data without rebuilding**: `dvc pull`
 
-There is no lint/test tooling configured in this repo (no test suite, no linter config beyond the dependency list).
+There is no test suite, linter config, or Node toolchain. Node is not installed on this machine — do not introduce a build step that requires it without checking first.
 
 ## Architecture
 
-**Global load pattern**: Nothing here uses normal Python imports between the app's own modules. `app.py` and `src/00_pipeline.py` both start with `exec(open('global.py').read())`, and `global.py` itself does `exec()` on every `.py` file in `functions/`. This means:
-- Shared imports/config/helpers live in `global.py` and `functions/*.py` and become available implicitly wherever `global.py` is exec'd — there are no explicit imports to trace.
-- `config.yaml` (source URLs and filenames for HPI/geojson/CPI data) is loaded once in `global.py` as the `config` dict.
-- When adding a new shared helper, drop a new file in `functions/` — it's picked up automatically, no registration needed.
+**Global load pattern (Python side)**: nothing uses normal imports between the project's own modules. Every script starts with `exec(open('global.py').read())`, and `global.py` in turn `exec()`s every `.py` file in `functions/`. Shared imports, the `config` dict (from `config.yaml`), and all helpers become available implicitly. To add a helper, drop a file in `functions/` — it is picked up automatically.
 
-**Data pipeline** (`src/`, numbered to indicate execution order): scrapes HPI data from Land Registry and CPI data from ONS, reprojects the LAD geojson boundaries (EPSG:27700 → EPSG:4326, LAD code column is auto-detected per year, e.g. `LAD23CD`/`LAD25CD`), and writes processed output as parquet/geojson into `data/`. `raw_data/` holds the untouched downloads.
+**Pipeline** (`src/`, numbered in execution order): scrape HPI → scrape CPI → reproject boundaries (EPSG:27700 → 4326, LAD code column auto-detected per year) → clean HPI → clean CPI → export web assets. Intermediate output lands in `data/` as parquet/geojson.
 
-**Data storage via DVC**: `data/` and `raw_data/` are git-ignored (see their `.gitignore`) — only `.dvc` pointer files are committed. Actual data must be materialized with `dvc pull`, or regenerated via `src/00_pipeline.py`. `deploy_app.bat` explicitly checks for the materialized parquet/geojson files before deploying and fails fast with instructions if they're missing — rsconnect needs real files, not `.dvc` stubs.
+**Data storage**: `data/` and `raw_data/` are DVC-tracked and gitignored — only `.dvc` pointers are committed. `web/data/` is also gitignored because it is generated by step 06.
 
-**App (`app.py`)**: a single-file Shiny app.
-- UI: date-range picker, housing-type selector (Overall/Detached/SemiDetached/Terraced/Flat), map resolution toggle (Low/High — swaps between `uk_lads.geojson` and `uk_lads_highres.geojson`), nominal/real toggle (real prices are CPI-deflated), a choropleth map, a Local Authority selector with a stats table, and a per-area time series chart.
-- Server logic is reactive (`@reactive.Calc`/`@reactive.Effect`): `filter_data()` filters the HPI data to the selected date range and applies CPI adjustment when "Real" is selected; `processed_data()` computes % house price change between the range's start/end dates per LAD, feeding the map. Map clicks and the area dropdown are kept in sync via a shared `reactive.Value` (`clicked_area_value`).
-- Static assets (CSS) live in `www/`.
+### The web data format
+
+This is the part that needs understanding before changing anything on either side of the boundary. `src/06_export_web_data.py` writes to `web/data/`:
+
+- `prices-N.bin` — one file per housing type, a `uint16` matrix of `[area][month]`. Values are an index relative to that area's **first observation** (×1000, `meta.scale`), with `0` as the missing-data sentinel. One file per type so the browser loads the selected type first and streams the rest.
+- `meta.json` — area codes/names (ordered alphabetically by name; array position **is** the area id), month axis as `{start, count}`, the CPI series aligned to that axis, and `base[type][area]` absolute prices.
+- `lads.geojson` — boundaries filtered to areas that have price data, coordinates rounded to 4dp, `feature.id` set to the **area index** so MapLibre `feature-state` can key off it.
+
+Two invariants tie the halves together and are easy to break:
+
+1. **Area index is the join key.** The position of an area in `meta.areas` is its id in `prices-N.bin` rows, in `lads.geojson` `feature.id`, and in every `setFeatureState` call. Reordering `meta.areas` without regenerating everything silently mismatches the data to the map.
+2. **The map only needs ratios.** `growth()` divides two stored indices, so `base` cancels out. Absolute prices (`base * index / scale`) are only needed for the chart. This is why `uint16` is sufficient.
+
+### Frontend (`web/js/`, ES modules, no bundler)
+
+- `data.js` — fetching, decoding, and all price maths (`price`, `growth`, `growthByArea`, `annualise`). The one place that knows the binary format.
+- `map.js` — MapLibre choropleth. **No basemap tiles** (deliberate: avoids cost and OSM usage restrictions). Colour is a static paint expression reading `feature-state.n`, a value normalised to [-1, 1]; `NO_DATA` (-999) sits outside that range so "no observation" is distinguishable from "no change". Recolouring is a feature-state update, never a geometry re-render.
+- `chart.js` — uPlot price history, five series.
+- `main.js` — owns interaction state (`start`, `end`, `type`, `real`, `area`) and the render pipeline.
+
+Two subtleties worth preserving:
+
+- `render()` coalesces slider bursts, falling back to `setTimeout` when `document.hidden` because `requestAnimationFrame` is paused in background tabs.
+- `createMap` registers its readiness listeners immediately, and `whenReady` replays for late callers. MapLibre's `load` fires once; callers attach after an `await`, so attaching a `load` handler lazily would miss it.
+
+**Behaviour carried over from the Shiny app** — preserve unless deliberately changing: the symmetric colour bound is the 10th largest absolute change (`colourBound`, mirroring `MapValue.abs().nlargest(10).min()`), the ramp is `#9a0000` → `#ffffff` → `#085602`, real prices are CPI-deflated to the latest month, and annualised growth measures years as days / 365.
 
 ## Deployment
 
-Two independent deployment paths exist and are kept in sync manually: `Dockerfile` (Amazon Linux, builds Python 3.9.13 from source, runs via `uvicorn app:app`) and shinyapps.io via `rsconnect-python` (`deploy_app.bat`, config in `rsconnect-python/UK_House_Prices.json`).
+The deployable artefact is the `web/` folder — static files only. Target is Cloudflare Pages, by dashboard upload or `npx wrangler pages deploy web`. Because `web/data/` is gitignored, a git-connected build would lack the data; deploy by direct upload, or run the pipeline in CI first.
+
+## Attribution is mandatory
+
+The Land Registry, ONS and OS boundary data are Open Government Licence v3.0, which permits commercial use **but requires attribution**. Those statements live in the `index.html` footer. If data sources change, update the footer to match.

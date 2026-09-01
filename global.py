@@ -1,14 +1,10 @@
-from branca.colormap import LinearColormap
 import datatable as dt
 from datetime import date, datetime, timedelta
 import geopandas as gp
-import ipyleaflet as ip
 import json as j
 import numpy as np
 import os
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import ssl
 import yaml
 

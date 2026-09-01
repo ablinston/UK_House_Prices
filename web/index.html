@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UK House Price Changes by Local Authority</title>
+<meta name="description" content="Interactive map of average house price changes across UK local authorities, in nominal and inflation-adjusted terms, using Land Registry and ONS data.">
+
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <h1>House Price Changes Across the UK</h1>
+  <p>Average sold prices by local authority, from the Land Registry House Price Index</p>
+</header>
+
+<main class="layout">
+
+  <section class="panel controls" aria-labelledby="controls-heading">
+    <h2 id="controls-heading" class="visually-hidden">Controls</h2>
+
+    <p class="intro">
+      Choose a date range to see how average sold prices changed between those dates.
+      Click any area on the map for its detailed history.
+    </p>
+
+    <div class="field">
+      <label for="start-month">Date range</label>
+      <div class="range-readout">
+        <span id="start-label">—</span>
+        <span class="range-arrow" aria-hidden="true">→</span>
+        <span id="end-label">—</span>
+      </div>
+      <input type="range" id="start-month" min="0" max="0" value="0" step="1"
+             aria-label="Start month">
+      <input type="range" id="end-month" min="0" max="0" value="0" step="1"
+             aria-label="End month">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="house-type">Type of housing</label>
+        <select id="house-type"></select>
+      </div>
+      <div class="field">
+        <label for="price-basis">Nominal or real prices</label>
+        <select id="price-basis">
+          <option value="real" selected>Real (inflation adjusted)</option>
+          <option value="nominal">Nominal</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel map-panel" aria-labelledby="map-heading">
+    <h2 id="map-heading" class="visually-hidden">Map</h2>
+    <div id="map" role="application" aria-label="Map of UK local authorities coloured by house price change"></div>
+    <div id="map-status" class="map-status">Loading map…</div>
+    <div class="legend" id="legend" hidden>
+      <span class="legend-label" id="legend-min"></span>
+      <span class="legend-ramp" aria-hidden="true"></span>
+      <span class="legend-label" id="legend-max"></span>
+    </div>
+  </section>
+
+  <section class="panel area-panel" aria-labelledby="area-heading">
+    <h2 id="area-heading">Local authority detail</h2>
+
+    <div class="field">
+      <label for="area-select">Area</label>
+      <select id="area-select"></select>
+    </div>
+
+    <div class="area-body">
+      <div class="stats-wrap">
+        <table class="stats" id="stats">
+          <caption class="visually-hidden">Price change by housing type</caption>
+          <thead>
+            <tr><th scope="col">Type</th><th scope="col">Total</th><th scope="col">Per year</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="chart-wrap">
+        <h3 id="chart-title" class="chart-title">—</h3>
+        <div id="chart"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <p id="basis-note"></p>
+  <p>
+    Contains HM Land Registry data © Crown copyright and database right 2026.
+    The UK House Price Index is produced by HM Land Registry, the Office for National Statistics,
+    Registers of Scotland, and Land &amp; Property Services Northern Ireland.
+    Inflation adjustment uses the ONS Consumer Prices Index (CPI, series D7BT).
+  </p>
+  <p>
+    Boundaries: Contains OS data © Crown copyright and database right 2025.
+    Contains National Statistics data © Crown copyright and database right 2025.
+  </p>
+  <p>
+    This data is licensed under the
+    <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" rel="noopener">Open Government Licence v3.0</a>.
+  </p>
+</footer>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/uPlot.iife.min.js"></script>
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>
