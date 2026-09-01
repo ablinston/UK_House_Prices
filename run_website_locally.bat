@@ -25,4 +25,4 @@ echo   Open http://localhost:8000
 echo   Press Ctrl+C to stop.
 echo.
 
-python -m http.server 8000 --directory "%~dp0web"
+python "%~dp0serve.py" --port 8000 --directory "%~dp0web"

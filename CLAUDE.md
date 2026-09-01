@@ -17,7 +17,7 @@ This was converted from a Shiny for Python app. There is no longer any Python in
 
 Activate the venv first (Windows): `venv\Scripts\activate.bat`
 
-- **Preview the site**: `run_website_locally.bat` → <http://localhost:8000> (serves `web/` via `python -m http.server`; no build, just refresh after edits)
+- **Preview the site**: `run_website_locally.bat` → <http://localhost:8000>. This runs `serve.py`, which is `http.server` plus no-cache headers — **use it rather than `python -m http.server`**, whose caching serves stale ES modules and surfaces them as misleading "does not provide an export named ..." errors.
 - **Full data refresh**: `python src\00_pipeline.py` — chains steps 01→06
 - **Regenerate web assets only**: `python src\06_export_web_data.py`
 - **Fetch data without rebuilding**: `dvc pull`
@@ -57,7 +57,17 @@ Two subtleties worth preserving:
 - `render()` coalesces slider bursts, falling back to `setTimeout` when `document.hidden` because `requestAnimationFrame` is paused in background tabs.
 - `createMap` registers its readiness listeners immediately, and `whenReady` replays for late callers. MapLibre's `load` fires once; callers attach after an `await`, so attaching a `load` handler lazily would miss it.
 
-**Behaviour carried over from the Shiny app** — preserve unless deliberately changing: the symmetric colour bound is the 10th largest absolute change (`colourBound`, mirroring `MapValue.abs().nlargest(10).min()`), the ramp is `#9a0000` → `#ffffff` → `#085602`, real prices are CPI-deflated to the latest month, and annualised growth measures years as days / 365.
+**Behaviour carried over from the Shiny app** — preserve unless deliberately changing: the symmetric colour bound is the 10th largest absolute change (`colourBound`, mirroring `MapValue.abs().nlargest(10).min()`), real prices are CPI-deflated to the latest month, and annualised growth measures years as days / 365.
+
+The diverging ramp was deliberately changed from the original dark red/green to rose → neutral → teal (`--ramp-neg`/`--ramp-mid`/`--ramp-pos`), which is more legible for red-green colour blindness while keeping "red = falling" intuitive.
+
+### Theming
+
+`css/style.css` defines every colour as a token on `:root`, overridden under `@media (prefers-color-scheme: dark)`. Both `map.js` and `chart.js` read those tokens via `getComputedStyle` rather than hardcoding colours, and both listen for `prefers-color-scheme` changes — the map repaints in place via `setPaintProperty`, the chart rebuilds (uPlot bakes series strokes in at construction). **If you add a colour, add it as a token**, or it will be wrong in one of the two themes.
+
+The site has no theme switcher of its own: it follows the visitor's browser setting and nothing else.
+
+The controls panel uses a CSS **container query** (`@container controls`), not a media query, because that column stays narrow on wide screens — a viewport query would place the selects side by side in too little space and truncate the labels.
 
 ## Deployment
 

@@ -4,21 +4,25 @@
  * All computation happens here in the browser — the server only ever serves
  * static files. */
 
-import { loadMeta, getMeta, loadType, isLoaded, price, growth, growthByArea, annualise } from './data.js';
+import { loadMeta, loadType, isLoaded, price, growth, growthByArea, annualise, coverage } from './data.js';
 import { createMap } from './map.js';
-import { createChart, formatPrice } from './chart.js';
+import { createChart } from './chart.js';
 
 const DEFAULT_AREA_CODE = 'S12000036';   // City of Edinburgh
 const DEFAULT_START = '2005-01';
+const THUMB = 16;                        // matches the slider thumb in style.css
 
 const el = {
 	startSlider: document.getElementById('start-month'),
 	endSlider: document.getElementById('end-month'),
 	startLabel: document.getElementById('start-label'),
 	endLabel: document.getElementById('end-label'),
+	rangeFill: document.getElementById('range-fill'),
 	houseType: document.getElementById('house-type'),
 	priceBasis: document.getElementById('price-basis'),
 	areaSelect: document.getElementById('area-select'),
+	headlineValue: document.getElementById('headline-value'),
+	headlineLabel: document.getElementById('headline-label'),
 	stats: document.querySelector('#stats tbody'),
 	chart: document.getElementById('chart'),
 	chartTitle: document.getElementById('chart-title'),
@@ -26,16 +30,11 @@ const el = {
 	legend: document.getElementById('legend'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
+	topbarMeta: document.getElementById('topbar-meta'),
 	basisNote: document.getElementById('basis-note'),
 };
 
-const state = {
-	start: 0,
-	end: 0,
-	type: 0,
-	real: true,
-	area: 0,
-};
+const state = { start: 0, end: 0, type: 0, real: true, area: 0 };
 
 let meta = null;
 let mapView = null;
@@ -47,11 +46,30 @@ function formatPercent(value, digits = 1) {
 	return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
 }
 
+function typeLabel(type) {
+	return type === 'SemiDetached' ? 'Semi-detached' : type;
+}
+
+function toneOf(value) {
+	if (!Number.isFinite(value)) return 'none';
+	return value >= 0 ? 'up' : 'down';
+}
+
 /* ---------- rendering ---------- */
 
-function renderLabels() {
+function renderRange() {
 	el.startLabel.textContent = meta.monthLabels[state.start];
 	el.endLabel.textContent = meta.monthLabels[state.end];
+
+	// A native range thumb travels between its own half-widths, so the fill is
+	// offset to match rather than sitting at a naive percentage.
+	const last = Math.max(meta.nMonths - 1, 1);
+	const from = (state.start / last) * 100;
+	const to = (state.end / last) * 100;
+	const span = to - from;
+
+	el.rangeFill.style.left = `calc(${from}% + ${(0.5 - from / 100) * THUMB}px)`;
+	el.rangeFill.style.width = `calc(${span}% - ${(span / 100) * THUMB}px)`;
 }
 
 function renderMap() {
@@ -65,24 +83,46 @@ function renderMap() {
 	}
 }
 
+function renderHeadline() {
+	const loaded = isLoaded(state.type);
+	const total = loaded ? growth(state.type, state.area, state.start, state.end, state.real) : NaN;
+
+	el.headlineValue.className = `headline-value ${toneOf(total)}`;
+
+	const basis = state.real ? 'Real' : 'Nominal';
+	const period = `${meta.monthLabels[state.start]} to ${meta.monthLabels[state.end]}`;
+
+	if (Number.isFinite(total)) {
+		el.headlineValue.textContent = formatPercent(total);
+		el.headlineLabel.textContent =
+			`${basis} change · ${typeLabel(meta.types[state.type])} · ${period}`;
+		return;
+	}
+
+	// Explain the gap rather than showing a bare dash: Scotland and Northern
+	// Ireland records begin well after those for England and Wales.
+	el.headlineValue.textContent = loaded ? 'No data for this period' : 'Loading…';
+
+	const span = loaded ? coverage(state.type, state.area) : null;
+	el.headlineLabel.textContent = span
+		? `${meta.areas[state.area].n} records run from ${meta.monthLabels[span.first]} to ${meta.monthLabels[span.last]}`
+		: `${basis} change · ${typeLabel(meta.types[state.type])} · ${period}`;
+}
+
 function renderStats() {
-	const rows = meta.types.map((type, i) => {
+	el.stats.innerHTML = meta.types.map((type, i) => {
 		const loaded = isLoaded(i);
 		const total = loaded ? growth(i, state.area, state.start, state.end, state.real) : NaN;
 		const perYear = loaded ? annualise(total, state.start, state.end) : NaN;
-
-		const cls = !Number.isFinite(total) ? 'none' : total >= 0 ? 'up' : 'down';
-		const label = type === 'SemiDetached' ? 'Semi-detached' : type;
+		const tone = toneOf(total);
 		const cell = (value) => (loaded ? formatPercent(value) : '…');
 
 		return `<tr>
-			<td>${label}</td>
-			<td class="${cls}">${cell(total)}</td>
-			<td class="${cls}">${cell(perYear)}</td>
+			<td>${typeLabel(type)}</td>
+			<td class="${tone}">${cell(total)}</td>
+			<td class="${tone}">${cell(perYear)}</td>
 		</tr>`;
-	});
-
-	el.stats.innerHTML = rows.join('');
+	}).join('');
 }
 
 function renderChart() {
@@ -102,9 +142,8 @@ function renderChart() {
 
 	chart.update([xs, ...series]);
 
-	const basis = state.real ? 'real' : 'nominal';
 	el.chartTitle.textContent =
-		`Average ${basis} house price in ${meta.areas[state.area].n}`;
+		`Average ${state.real ? 'real' : 'nominal'} price · ${meta.areas[state.area].n}`;
 }
 
 /* Coalesce bursts of slider events into one paint. requestAnimationFrame is
@@ -118,11 +157,18 @@ function render() {
 	if (frame) return;
 	frame = schedule(() => {
 		frame = null;
-		renderLabels();
+		renderRange();
 		renderMap();
+		renderHeadline();
 		renderStats();
 		renderChart();
 	});
+}
+
+function renderAreaDetail() {
+	renderHeadline();
+	renderStats();
+	renderChart();
 }
 
 /* ---------- interaction ---------- */
@@ -131,13 +177,12 @@ function setArea(area) {
 	state.area = area;
 	el.areaSelect.value = String(area);
 	mapView.setSelected(area);
-	renderStats();
-	renderChart();
+	renderAreaDetail();
 }
 
 function describeArea(area) {
 	const value = growth(state.type, area, state.start, state.end, state.real);
-	return `<b>${meta.areas[area].n}</b><br>${formatPercent(value)}`;
+	return `<b>${meta.areas[area].n}</b><br><span class="tip-value">${formatPercent(value)}</span>`;
 }
 
 function wireControls() {
@@ -171,12 +216,15 @@ function wireControls() {
 
 /* ---------- startup ---------- */
 
+function monthKey(index) {
+	const [year, month] = meta.months.start.split('-').map(Number);
+	const date = new Date(Date.UTC(year, month - 1 + index, 1));
+	return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 function populateControls() {
 	el.houseType.innerHTML = meta.types
-		.map((type, i) => {
-			const label = type === 'SemiDetached' ? 'Semi-detached' : type;
-			return `<option value="${i}">${label}</option>`;
-		})
+		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
 		.join('');
 
 	el.areaSelect.innerHTML = meta.areas
@@ -189,13 +237,12 @@ function populateControls() {
 		slider.max = String(last);
 	}
 
-	const defaultStart = meta.monthLabels.findIndex((_, i) => {
-		const [year, month] = meta.months.start.split('-').map(Number);
-		const d = new Date(Date.UTC(year, month - 1 + i, 1));
-		return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}` === DEFAULT_START;
-	});
+	let defaultStart = 0;
+	for (let i = 0; i <= last; i++) {
+		if (monthKey(i) === DEFAULT_START) { defaultStart = i; break; }
+	}
 
-	state.start = defaultStart >= 0 ? defaultStart : 0;
+	state.start = defaultStart;
 	state.end = last;
 	el.startSlider.value = String(state.start);
 	el.endSlider.value = String(state.end);
@@ -204,8 +251,9 @@ function populateControls() {
 	state.area = defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
 
+	el.topbarMeta.textContent = `Data to ${meta.monthLabels[last]}`;
 	el.basisNote.textContent =
-		`Real prices are expressed in ${meta.cpiBase} money. Data last updated ${meta.generated}.`;
+		`Real prices in ${meta.cpiBase} money · Updated ${meta.generated}`;
 }
 
 async function start() {
@@ -231,14 +279,11 @@ async function start() {
 	// another line on the chart and another row of the stats table.
 	meta.types.forEach((_, i) => {
 		if (i === state.type) return;
-		loadType(i).then(() => {
-			renderStats();
-			renderChart();
-		});
+		loadType(i).then(renderAreaDetail);
 	});
 }
 
 start().catch((error) => {
 	console.error(error);
-	el.mapStatus.textContent = 'Could not load the data. Please refresh to try again.';
+	el.mapStatus.innerHTML = '<span>Could not load the data. Please refresh to try again.</span>';
 });

@@ -5,110 +5,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UK House Price Changes by Local Authority</title>
 <meta name="description" content="Interactive map of average house price changes across UK local authorities, in nominal and inflation-adjusted terms, using Land Registry and ONS data.">
+<meta name="color-scheme" content="light dark">
 
+<link rel="preload" href="vendor/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <link rel="stylesheet" href="vendor/uPlot.min.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<header class="masthead">
-  <h1>House Price Changes Across the UK</h1>
-  <p>Average sold prices by local authority, from the Land Registry House Price Index</p>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 20h18"></path>
+          <path d="M6 20V11l6-5 6 5v9"></path>
+          <path d="M10 20v-5h4v5"></path>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">UK House Prices</span>
+        <span class="brand-sub">Local authority price changes</span>
+      </span>
+    </div>
+    <div class="topbar-meta" id="topbar-meta"></div>
+  </div>
 </header>
 
 <main class="layout">
 
   <section class="panel controls" aria-labelledby="controls-heading">
-    <h2 id="controls-heading" class="visually-hidden">Controls</h2>
-
+    <h2 id="controls-heading" class="panel-title">Explore</h2>
     <p class="intro">
-      Choose a date range to see how average sold prices changed between those dates.
-      Click any area on the map for its detailed history.
+      Pick a date range to see how average sold prices changed. Click any area on
+      the map for its full history.
     </p>
 
     <div class="field">
-      <label for="start-month">Date range</label>
-      <div class="range-readout">
-        <span id="start-label">—</span>
-        <span class="range-arrow" aria-hidden="true">→</span>
-        <span id="end-label">—</span>
+      <div class="field-head">
+        <label for="start-month">Date range</label>
+        <span class="range-readout">
+          <span id="start-label">—</span>
+          <span class="range-arrow" aria-hidden="true">→</span>
+          <span id="end-label">—</span>
+        </span>
       </div>
-      <input type="range" id="start-month" min="0" max="0" value="0" step="1"
-             aria-label="Start month">
-      <input type="range" id="end-month" min="0" max="0" value="0" step="1"
-             aria-label="End month">
+
+      <div class="range">
+        <span class="range-track" aria-hidden="true"><span class="range-fill" id="range-fill"></span></span>
+        <input type="range" id="start-month" min="0" max="0" value="0" step="1" aria-label="Start month">
+        <input type="range" id="end-month" min="0" max="0" value="0" step="1" aria-label="End month">
+      </div>
     </div>
 
     <div class="field-row">
       <div class="field">
-        <label for="house-type">Type of housing</label>
-        <select id="house-type"></select>
+        <label for="house-type">Housing type</label>
+        <div class="select-wrap"><select id="house-type"></select></div>
       </div>
       <div class="field">
-        <label for="price-basis">Nominal or real prices</label>
-        <select id="price-basis">
-          <option value="real" selected>Real (inflation adjusted)</option>
-          <option value="nominal">Nominal</option>
-        </select>
+        <label for="price-basis">Price basis</label>
+        <div class="select-wrap">
+          <select id="price-basis">
+            <option value="real" selected>Real (inflation adjusted)</option>
+            <option value="nominal">Nominal</option>
+          </select>
+        </div>
       </div>
     </div>
   </section>
 
   <section class="panel map-panel" aria-labelledby="map-heading">
-    <h2 id="map-heading" class="visually-hidden">Map</h2>
+    <h2 id="map-heading" class="visually-hidden">Map of price changes</h2>
     <div id="map" role="application" aria-label="Map of UK local authorities coloured by house price change"></div>
-    <div id="map-status" class="map-status">Loading map…</div>
+
+    <div id="map-status" class="map-status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Loading map</span>
+    </div>
+
     <div class="legend" id="legend" hidden>
-      <span class="legend-label" id="legend-min"></span>
-      <span class="legend-ramp" aria-hidden="true"></span>
-      <span class="legend-label" id="legend-max"></span>
+      <div class="legend-scale">
+        <span class="legend-label" id="legend-min"></span>
+        <span class="legend-ramp" aria-hidden="true"></span>
+        <span class="legend-label" id="legend-max"></span>
+      </div>
+      <div class="legend-nodata"><span class="legend-swatch" aria-hidden="true"></span> No data</div>
     </div>
   </section>
 
   <section class="panel area-panel" aria-labelledby="area-heading">
-    <h2 id="area-heading">Local authority detail</h2>
-
-    <div class="field">
-      <label for="area-select">Area</label>
-      <select id="area-select"></select>
+    <div class="area-head">
+      <h2 id="area-heading" class="panel-title">Area detail</h2>
+      <div class="select-wrap area-select-wrap">
+        <select id="area-select" aria-label="Local authority"></select>
+      </div>
     </div>
 
-    <div class="area-body">
-      <div class="stats-wrap">
-        <table class="stats" id="stats">
-          <caption class="visually-hidden">Price change by housing type</caption>
-          <thead>
-            <tr><th scope="col">Type</th><th scope="col">Total</th><th scope="col">Per year</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="chart-wrap">
-        <h3 id="chart-title" class="chart-title">—</h3>
-        <div id="chart"></div>
-      </div>
+    <div class="headline">
+      <div class="headline-value" id="headline-value">—</div>
+      <div class="headline-label" id="headline-label">—</div>
+    </div>
+
+    <div class="stats-wrap">
+      <table class="stats" id="stats">
+        <caption class="visually-hidden">Price change by housing type</caption>
+        <thead>
+          <tr><th scope="col">Type</th><th scope="col">Total</th><th scope="col">Per year</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="chart-block">
+      <h3 id="chart-title" class="chart-title">—</h3>
+      <div id="chart"></div>
     </div>
   </section>
 
 </main>
 
 <footer class="site-footer">
-  <p id="basis-note"></p>
-  <p>
-    Contains HM Land Registry data © Crown copyright and database right 2026.
-    The UK House Price Index is produced by HM Land Registry, the Office for National Statistics,
-    Registers of Scotland, and Land &amp; Property Services Northern Ireland.
-    Inflation adjustment uses the ONS Consumer Prices Index (CPI, series D7BT).
-  </p>
-  <p>
-    Boundaries: Contains OS data © Crown copyright and database right 2025.
-    Contains National Statistics data © Crown copyright and database right 2025.
-  </p>
-  <p>
-    This data is licensed under the
-    <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" rel="noopener">Open Government Licence v3.0</a>.
-  </p>
+  <div class="footer-inner">
+    <p class="footer-note" id="basis-note"></p>
+    <p>
+      Contains HM Land Registry, ONS and OS data © Crown copyright and database right 2025–2026.
+      UK House Price Index produced by HM Land Registry, ONS, Registers of Scotland and
+      Land &amp; Property Services Northern Ireland. Licensed under the
+      <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" rel="noopener">Open Government Licence v3.0</a>.
+    </p>
+  </div>
 </footer>
 
 <script src="vendor/maplibre-gl.js"></script>

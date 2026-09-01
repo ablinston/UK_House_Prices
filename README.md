@@ -86,10 +86,11 @@ full pipeline to rebuild them from source.
 run_website_locally.bat
 ```
 
-Then open <http://localhost:8000>. This serves `web/` with Python's built-in HTTP
-server — the same static files that get deployed, so what you see locally is what
-production will do. There is nothing to compile or bundle; edit a file and
-refresh.
+Then open <http://localhost:8000>. This runs `serve.py`, a thin wrapper around
+Python's built-in HTTP server that adds no-cache headers, so edits show up on a
+plain refresh instead of being served stale. It serves exactly the same static
+files that get deployed, so what you see locally is what production will do.
+There is nothing to compile or bundle; edit a file and refresh.
 
 ## Deploying
 
@@ -117,6 +118,16 @@ requests:
 
 - [MapLibre GL JS](https://maplibre.org/) (BSD-3-Clause) — the choropleth map
 - [uPlot](https://github.com/leeoniya/uPlot) (MIT) — the price history chart
+- [Inter](https://rsms.me/inter/) (SIL Open Font License) — the typeface, as a
+  48 KB variable-weight subset
+
+Self-hosting the font also avoids the GDPR complications of loading webfonts
+from a third-party CDN.
+
+The interface follows the visitor's own browser light/dark setting — there is no
+theme switcher in the page. All colours, including the map and the chart, come
+from CSS custom properties in `web/css/style.css`, so restyling happens in one
+place.
 
 There is no basemap. The map renders the local authority boundaries directly,
 which avoids both the cost and the usage restrictions of third-party tile

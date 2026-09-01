@@ -108,6 +108,27 @@ export function growthByArea(type, start, end, real) {
 	return values;
 }
 
+/** First and last months for which an area has an observation, or null if it
+ *  has none at all. Scotland and Northern Ireland start well after England and
+ *  Wales, so this is what explains an empty reading rather than a broken one. */
+export function coverage(type, area) {
+	const matrix = matrices[type];
+	if (!matrix) return null;
+
+	const offset = area * meta.nMonths;
+	let first = -1;
+	let last = -1;
+
+	for (let month = 0; month < meta.nMonths; month++) {
+		if (matrix[offset + month] !== MISSING) {
+			if (first < 0) first = month;
+			last = month;
+		}
+	}
+
+	return first < 0 ? null : { first, last };
+}
+
 /** Convert a total percentage change into an annualised rate.
  *  Mirrors the original Shiny app, which measured years as days / 365. */
 export function annualise(total, startMonth, endMonth) {
