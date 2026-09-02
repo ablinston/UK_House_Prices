@@ -1,4 +1,3 @@
-from wget import download
 import urllib.request
 
 exec(open('global.py').read())
@@ -23,8 +22,6 @@ for i in range(5):
     link = str(config['UK_house_price_stats_source']).replace("YEAR", str(current_date.year)).replace("MONTH", str(current_date.strftime("%m")))
     
     try:
-        # download(link,
-        #          'raw_data/UK-HPI-full-file.csv')
         # Open the URL with the unverified context
        with urllib.request.urlopen(link, context=ssl_context) as response:
            # Read the data from the response

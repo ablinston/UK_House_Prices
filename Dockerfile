@@ -1,52 +1,35 @@
-# Use the Amazon Linux base image
-FROM amazonlinux
+# UK House Prices — dev container image.
+#
+# Slim Python base for the data pipeline (src/, functions/, global.py).
+# Also provisions git and the Claude Code CLI so both are usable inside the
+# container. Host credentials for git and Claude Code are bind-mounted at
+# runtime by .devcontainer/devcontainer.json — this image itself ships no
+# secrets, so it's safe to rebuild/share.
 
-# Install necessary packages for building Python
-RUN yum update -y && \
-    yum install -y gcc openssl-devel bzip2-devel libffi-devel wget tar gzip zlib-devel passwd shadow-utils
+FROM python:3.11-slim
 
-# Download and install Python 3.9.13
-RUN wget https://www.python.org/ftp/python/3.9.13/Python-3.9.13.tgz && \
-    tar -xzf Python-3.9.13.tgz && \
-    cd Python-3.9.13 && \
-    ./configure --enable-optimizations && \
-    make altinstall && \
-    cd .. && \
-    rm -rf Python-3.9.13* && \
-    ln -s /usr/local/bin/python3.9 /usr/local/bin/python
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        openssh-client \
+        curl \
+        ca-certificates \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install pip
-RUN wget https://bootstrap.pypa.io/get-pip.py && \
-    python3 get-pip.py && \
-    rm get-pip.py
-	
-# Add user an change working directory and user
-RUN groupadd --system app && useradd --system -g app app
+# Container-local git config that *includes* the host's ~/.gitconfig (bind-
+# mounted read-only to /root/.gitconfig-host) instead of writing into it, and
+# adds a safe.directory exception for the bind-mounted /workspace repo.
+RUN printf '[include]\n\tpath = /root/.gitconfig-host\n[safe]\n\tdirectory = /workspace\n' > /root/.gitconfig
 
+WORKDIR /workspace
 
-# Alternative code that uses the python base image
-#FROM python:3.9
-
-WORKDIR /home/app
-# Copy whole directory to the container
+# Copied separately so this layer only rebuilds when dependencies change.
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Install Python library dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Claude Code CLI — native installer, no Node.js required.
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Add user an change working directory and user
-#RUN addgroup --system app && adduser --system --ingroup app app
-
-RUN chown app:app -R /home/app
-USER app
-
-# Copy whole directory to the container
-COPY . .
-
-# Expose the port
-EXPOSE 8080
-
-# Set entrypoint or default command if needed
-#ENTRYPOINT ["python"]
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
-
+CMD ["bash"]

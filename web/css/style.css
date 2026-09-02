@@ -1,0 +1,650 @@
+/* UK House Prices — design system and layout.
+ *
+ * Every colour is a token on :root, overridden under prefers-color-scheme:dark.
+ * The map and chart read these same tokens at runtime (see js/map.js and
+ * js/chart.js) rather than hardcoding values, so the whole interface — the
+ * choropleth included — follows the visitor's own browser setting. */
+
+@font-face {
+	font-family: 'Inter';
+	src: url('../vendor/fonts/inter-var.woff2') format('woff2');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+:root {
+	color-scheme: light;
+
+	--bg: #f5f7f9;
+	--surface: #ffffff;
+	--surface-sunken: #f8fafc;
+	--border: #e5e8ee;
+	--border-strong: #d4dae3;
+
+	--text: #0d1117;
+	--text-muted: #596273;
+	--text-subtle: #868e9d;
+
+	--accent: #1e3a8a;
+	--accent-bright: #2563eb;
+	--focus-ring: rgba(37, 99, 235, 0.22);
+
+	--pos: #0f766e;
+	--neg: #be123c;
+
+	/* Consumed by js/map.js */
+	--map-water: #e4eaf1;
+	--map-line: rgba(255, 255, 255, 0.6);
+	--map-nodata: #dde2e9;
+	--ramp-neg: #be123c;
+	--ramp-mid: #f8fafc;
+	--ramp-pos: #0f766e;
+
+	/* Chart series, in housing-type order */
+	--series-0: #0d1117;
+	--series-1: #0f766e;
+	--series-2: #b45309;
+	--series-3: #7c3aed;
+	--series-4: #2563eb;
+
+	--r-sm: 6px;
+	--r-md: 10px;
+	--r-lg: 14px;
+
+	--shadow-sm: 0 1px 2px rgba(13, 17, 23, 0.04);
+	--shadow-md: 0 1px 3px rgba(13, 17, 23, 0.06), 0 8px 24px -12px rgba(13, 17, 23, 0.12);
+
+	--topbar-h: 60px;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+
+		--bg: #0a0c10;
+		--surface: #12151c;
+		--surface-sunken: #171b24;
+		--border: #222834;
+		--border-strong: #2e3542;
+
+		--text: #e7eaf0;
+		--text-muted: #99a2b1;
+		--text-subtle: #6e7788;
+
+		--accent: #3b82f6;
+		--accent-bright: #60a5fa;
+		--focus-ring: rgba(96, 165, 250, 0.25);
+
+		--pos: #2dd4bf;
+		--neg: #fb7185;
+
+		--map-water: #0c1017;
+		--map-line: rgba(0, 0, 0, 0.4);
+		--map-nodata: #1b212b;
+		--ramp-neg: #e11d48;
+		--ramp-mid: #272e3a;
+		--ramp-pos: #14b8a6;
+
+		--series-0: #e7eaf0;
+		--series-1: #2dd4bf;
+		--series-2: #fbbf24;
+		--series-3: #a78bfa;
+		--series-4: #60a5fa;
+
+		--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+		--shadow-md: 0 1px 3px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+	}
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+	margin: 0;
+	font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	font-size: 14px;
+	line-height: 1.55;
+	color: var(--text);
+	background: var(--bg);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-feature-settings: 'cv05' 1, 'ss01' 1;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px; height: 1px;
+	padding: 0; margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	height: var(--topbar-h);
+	background: color-mix(in srgb, var(--surface) 82%, transparent);
+	backdrop-filter: saturate(180%) blur(12px);
+	-webkit-backdrop-filter: saturate(180%) blur(12px);
+	border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+	max-width: 1680px;
+	height: 100%;
+	margin: 0 auto;
+	padding: 0 20px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+.brand-mark {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	flex: none;
+	border-radius: 9px;
+	background: var(--accent);
+	color: #fff;
+}
+
+.brand-mark svg { width: 17px; height: 17px; }
+
+.brand-text { display: flex; flex-direction: column; min-width: 0; }
+
+.brand-name {
+	font-size: 14.5px;
+	font-weight: 600;
+	letter-spacing: -0.017em;
+	line-height: 1.25;
+}
+
+.brand-sub {
+	font-size: 12px;
+	color: var(--text-subtle);
+	line-height: 1.3;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.topbar-meta {
+	font-size: 12px;
+	color: var(--text-subtle);
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+	.brand-sub, .topbar-meta { display: none; }
+}
+
+/* ---------- Layout ---------- */
+
+.layout {
+	display: grid;
+	gap: 16px;
+	padding: 16px 20px 28px;
+	max-width: 1680px;
+	margin: 0 auto;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-areas: "controls" "map" "area";
+}
+
+@media (min-width: 1024px) {
+	.layout {
+		grid-template-columns: minmax(340px, 4.2fr) minmax(0, 7.8fr);
+		grid-template-areas:
+			"controls map"
+			"area     map";
+		align-items: start;
+	}
+}
+
+.controls   { grid-area: controls; container: controls / inline-size; }
+.map-panel  { grid-area: map; }
+.area-panel { grid-area: area; }
+
+.panel {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-lg);
+	box-shadow: var(--shadow-sm);
+	padding: 18px;
+}
+
+.panel-title {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+}
+
+.intro {
+	margin: 10px 0 18px;
+	color: var(--text-muted);
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+/* ---------- Fields ---------- */
+
+.field { margin-bottom: 16px; }
+.field:last-child { margin-bottom: 0; }
+
+.field-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+
+.field-row {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: minmax(0, 1fr);
+	margin-bottom: 0;
+}
+
+/* Keyed to the panel, not the viewport: the controls column stays narrow on
+   wide screens, so a viewport query would wrongly place these side by side */
+@container controls (min-width: 520px) {
+	.field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+.field-row .field { margin-bottom: 0; }
+
+label {
+	display: block;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+
+.field-head label { margin-bottom: 0; }
+
+.range-readout {
+	font-size: 13px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--text);
+	white-space: nowrap;
+}
+
+.range-arrow { color: var(--text-subtle); font-weight: 400; margin: 0 2px; }
+
+/* ---------- Select ---------- */
+
+.select-wrap { position: relative; }
+
+.select-wrap::after {
+	content: '';
+	position: absolute;
+	right: 12px;
+	top: 50%;
+	width: 7px;
+	height: 7px;
+	margin-top: -5px;
+	border-right: 1.6px solid var(--text-subtle);
+	border-bottom: 1.6px solid var(--text-subtle);
+	transform: rotate(45deg);
+	pointer-events: none;
+}
+
+select {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 100%;
+	font: inherit;
+	font-size: 13.5px;
+	padding: 9px 34px 9px 11px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-md);
+	background: var(--surface);
+	color: var(--text);
+	cursor: pointer;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+select:hover { border-color: var(--text-subtle); }
+
+select:focus-visible {
+	outline: none;
+	border-color: var(--accent-bright);
+	box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ---------- Dual range slider ---------- */
+
+.range { position: relative; height: 28px; }
+
+.range-track {
+	position: absolute;
+	left: 0; right: 0;
+	top: 50%;
+	height: 4px;
+	margin-top: -2px;
+	border-radius: 999px;
+	background: var(--border-strong);
+}
+
+.range-fill {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	border-radius: 999px;
+	background: var(--accent-bright);
+}
+
+.range input[type="range"] {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 28px;
+	margin: 0;
+	background: none;
+	appearance: none;
+	-webkit-appearance: none;
+	pointer-events: none;   /* only the thumbs are interactive */
+}
+
+.range input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	pointer-events: auto;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--surface);
+	border: 2px solid var(--accent-bright);
+	box-shadow: var(--shadow-sm);
+	cursor: grab;
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.range input[type="range"]::-moz-range-thumb {
+	pointer-events: auto;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--surface);
+	border: 2px solid var(--accent-bright);
+	box-shadow: var(--shadow-sm);
+	cursor: grab;
+}
+
+.range input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+.range input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.05); }
+
+.range input[type="range"]:focus-visible::-webkit-slider-thumb {
+	box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.range input[type="range"]:focus-visible::-moz-range-thumb {
+	box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.range input[type="range"]::-moz-range-track { background: none; }
+
+/* ---------- Map ---------- */
+
+.map-panel { position: relative; padding: 0; overflow: hidden; }
+
+#map {
+	width: 100%;
+	height: clamp(400px, 62vh, 860px);
+	background: var(--map-water);
+}
+
+@media (min-width: 1024px) {
+	.map-panel { position: sticky; top: calc(var(--topbar-h) + 16px); }
+	#map { height: calc(100vh - var(--topbar-h) - 32px); min-height: 560px; }
+}
+
+.map-status {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	background: var(--map-water);
+	color: var(--text-muted);
+	font-size: 13px;
+	pointer-events: none;
+}
+
+.map-status[hidden] { display: none; }
+
+.spinner {
+	width: 15px;
+	height: 15px;
+	border: 2px solid var(--border-strong);
+	border-top-color: var(--accent-bright);
+	border-radius: 50%;
+	animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+	.spinner { animation-duration: 2s; }
+}
+
+/* MapLibre's own controls, restyled to match */
+.maplibregl-ctrl-group {
+	background: var(--surface) !important;
+	border: 1px solid var(--border) !important;
+	border-radius: var(--r-md) !important;
+	box-shadow: var(--shadow-sm) !important;
+	overflow: hidden;
+}
+
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--border) !important; }
+
+/* MapLibre draws its +/- icons as dark SVGs, so invert them on a dark panel */
+.maplibregl-ctrl-group button span { filter: var(--ctrl-icon-filter, none); }
+
+@media (prefers-color-scheme: dark) {
+	:root { --ctrl-icon-filter: invert(1) brightness(1.6); }
+}
+
+.legend {
+	position: absolute;
+	left: 14px;
+	bottom: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+	padding: 10px 12px;
+	background: color-mix(in srgb, var(--surface) 88%, transparent);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-md);
+	font-size: 11px;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.legend-scale { display: flex; align-items: center; gap: 8px; }
+
+.legend-ramp {
+	width: 124px;
+	height: 8px;
+	border-radius: 999px;
+	background: linear-gradient(to right, var(--ramp-neg), var(--ramp-mid), var(--ramp-pos));
+	border: 1px solid var(--border);
+}
+
+.legend-label { font-weight: 500; color: var(--text); }
+
+.legend-nodata { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-subtle); }
+
+.legend-swatch {
+	width: 10px; height: 10px;
+	border-radius: 3px;
+	background: var(--map-nodata);
+	border: 1px solid var(--border);
+}
+
+.map-tooltip {
+	position: absolute;
+	z-index: 5;
+	pointer-events: none;
+	padding: 7px 10px;
+	background: var(--text);
+	color: var(--surface);
+	border-radius: var(--r-sm);
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: nowrap;
+	box-shadow: var(--shadow-md);
+	transform: translate(-50%, -145%);
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+
+.map-tooltip.is-visible { opacity: 1; }
+.map-tooltip b { font-weight: 600; }
+.map-tooltip .tip-value { font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+/* ---------- Area detail ---------- */
+
+.area-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 14px;
+	flex-wrap: wrap;
+}
+
+.area-select-wrap { flex: 1 1 200px; min-width: 0; }
+.area-select-wrap select { font-weight: 550; }
+
+.headline {
+	padding: 14px 16px;
+	border-radius: var(--r-md);
+	background: var(--surface-sunken);
+	border: 1px solid var(--border);
+	margin-bottom: 16px;
+}
+
+.headline-value {
+	font-size: 30px;
+	font-weight: 650;
+	letter-spacing: -0.03em;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+}
+
+.headline-value.up { color: var(--pos); }
+.headline-value.down { color: var(--neg); }
+
+/* An empty reading is a statement, not a number — size it like one */
+.headline-value.none {
+	color: var(--text-subtle);
+	font-size: 17px;
+	font-weight: 550;
+	letter-spacing: -0.01em;
+}
+
+.headline-label {
+	margin-top: 3px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.stats-wrap { overflow-x: auto; margin-bottom: 18px; }
+
+.stats {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.stats th, .stats td {
+	padding: 8px 10px;
+	text-align: right;
+	border-bottom: 1px solid var(--border);
+	white-space: nowrap;
+}
+
+.stats th:first-child, .stats td:first-child { text-align: left; padding-left: 0; }
+.stats th:last-child, .stats td:last-child { padding-right: 0; }
+
+.stats thead th {
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--text-subtle);
+	padding-bottom: 6px;
+}
+
+.stats tbody tr:last-child td { border-bottom: none; }
+.stats tbody tr { transition: background 0.12s ease; }
+.stats tbody td:first-child { color: var(--text-muted); }
+.stats .up { color: var(--pos); font-weight: 550; }
+.stats .down { color: var(--neg); font-weight: 550; }
+.stats .none { color: var(--text-subtle); }
+
+.chart-block {
+	border-top: 1px solid var(--border);
+	padding-top: 14px;
+}
+
+.chart-title {
+	margin: 0 0 10px;
+	font-size: 12.5px;
+	font-weight: 550;
+	color: var(--text-muted);
+	text-align: center;
+}
+
+#chart { min-height: 250px; }
+
+/* uPlot, toned down to match the panel */
+.u-legend { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
+.u-legend .u-marker { border-radius: 2px; }
+.u-select { background: var(--focus-ring); }
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+	border-top: 1px solid var(--border);
+	background: var(--surface);
+}
+
+.footer-inner {
+	max-width: 900px;
+	margin: 0 auto;
+	padding: 12px 20px 16px;
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--text-subtle);
+	text-align: center;
+	text-wrap: balance;
+}
+
+.footer-inner p { margin: 0; }
+.footer-note { color: var(--text-muted); font-weight: 500; margin-bottom: 2px !important; }
+.site-footer a { color: var(--accent-bright); text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }

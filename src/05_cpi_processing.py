@@ -5,17 +5,17 @@ exec(open('global.py').read())
 # Process the CPI inflation data
 
 # Read in data and remove the first 10 rows of metadata
-cpi_data = dt.fread('raw_data/' + config['UK_cpi_filename'])[10:, :]
+cpi_data = pd.read_csv('raw_data/' + config['UK_cpi_filename']).iloc[10:]
 
 # Convert the column to a number
-cpi_data['CPI INDEX 00: ALL ITEMS 2015=100'] = dt.float64
+cpi_data['CPI INDEX 00: ALL ITEMS 2015=100'] = pd.to_numeric(
+    cpi_data['CPI INDEX 00: ALL ITEMS 2015=100'], errors = 'coerce')
 
 # Get the needed columns
-cpi_data['cpi_index'] = cpi_data[:, dt.f['CPI INDEX 00: ALL ITEMS 2015=100'] / 100]
+cpi_data['cpi_index'] = cpi_data['CPI INDEX 00: ALL ITEMS 2015=100'] / 100
 
 #  Filter only the monthly data
-cpi_data = cpi_data.to_pandas()
-cpi_data = cpi_data[cpi_data['Title'].str.len() == 8]    
+cpi_data = cpi_data[cpi_data['Title'].str.len() == 8]
 
 # Format the dates to be compatible with the HPI data
 cpi_data['Date'] = pd.to_datetime(cpi_data['Title'], format = '%Y %b')
