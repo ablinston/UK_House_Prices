@@ -1,27 +1,46 @@
-# Python dependencies for the data pipeline (src/00_pipeline.py) and for
-# running/debugging it interactively in Cursor via its built-in Jupyter
-# kernel (ipykernel). The website itself has no Python runtime - it is
-# static files served from web/.
-#
-# Only direct dependencies are pinned; transitive dependencies are left to
-# pip's resolver, since this file is installed on both the dev machine
-# (x86_64, via the Docker dev container) and the Raspberry Pi (arm64, for
-# the scheduled pipeline run) and pinning the full transitive graph would
-# fight the resolver on one platform or the other.
-#
-# geopandas (+ pyproj, shapely, Fiona) is deliberately NOT listed here:
-# Fiona has no Linux ARM64 wheel on PyPI at any version, which breaks this
-# file's install on the Pi. It's only needed by
-# src/03_geojson_processing.py, which is Windows-only - install it
-# separately there (`pip install geopandas pyproj shapely Fiona`) when you
-# need to run that script. global.py's `import geopandas` is wrapped in a
-# try/except so every other step runs fine without it.
-
-PyYAML==6.0.1
-requests==2.31.0
-beautifulsoup4==4.12.2
-pandas==2.0.0
-numpy==1.24.2
-pyarrow==13.0.0
-fastparquet==2023.8.0
-ipykernel==6.29.5
+asttokens==3.0.2
+beautifulsoup4==4.15.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+comm==0.2.3
+cramjam==2.12.1
+debugpy==1.8.21
+executing==2.2.1
+fastparquet==2026.5.0
+fsspec==2026.7.0
+idna==3.19
+ipykernel==7.3.0
+ipython==9.17.1
+ipython_pygments_lexers==1.1.1
+jedi==0.20.0
+jupyter_client==8.10.0
+jupyter_core==5.9.1
+matplotlib-inline==0.2.2
+nest-asyncio==1.6.0
+nest-asyncio2==1.7.2
+numpy==2.4.6
+packaging==26.3
+pandas==3.0.5
+parso==0.8.7
+pexpect==4.9.0
+platformdirs==4.11.7
+prompt_toolkit==3.0.53
+psutil==7.2.2
+ptyprocess==0.7.0
+pure_eval==0.2.3
+pyarrow==25.0.1
+Pygments==2.21.0
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+PyYAML==6.0.3
+pyzmq==27.2.0
+requests==2.34.2
+six==1.17.0
+soupsieve==2.9.2
+stack-data==0.6.3
+tornado==6.5.8
+traitlets==5.16.1
+typing_extensions==4.16.0
+tzdata==2026.3
+urllib3==2.7.0
+wcwidth==0.8.3
