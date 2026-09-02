@@ -157,6 +157,32 @@ which permits commercial and non-commercial use with attribution.
 The attribution statements these licences require are rendered in the site
 footer. If you change the data sources, update that footer to match.
 
+## DVC Setup
+
+```
+pip install dvc-s3
+```
+Then need to set up the remote. I have called it `storage`.
+
+```
+dvc remote add -d storage s3://ab-uk-house-prices
+dvc remote modify storage endpointurl https://
+s3.eu-central-003.backblazeb2.com
+dvc remote modify storage access_key_id YOUR_KEY_ID_HERE
+dvc remote modify storage secret_access_key YOUR_APP_KEY_HERE
+```
+
+Push all git commits for dvc data with `dvc push -r storage --all-commits`. Otherwise, dvc will just push the datasets from the active commit. (doesn't seem to work right now so push frequently. Might start working if the latest version of DVC finally works with Backblaze.)
+
+Or, I've succcessfully installed it with conda with less trouble.
+
+```
+pip install dvc-s3
+```
+Had a common issue with a '128m' error. If this happens go in the .git/config file and comment out the limits in the `[pack]` section.
+
+Then need to set up the remote. I have called it `storage`.
+
 ### Boundary processing note
 
 The geojson from the Open Geography Portal is projected in British National Grid

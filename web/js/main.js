@@ -270,8 +270,9 @@ function populateControls() {
 	// which month's money real prices are expressed in.
 	el.topbarMeta.textContent = `House prices to ${meta.monthLabels[last]}`;
 	el.basisNote.textContent =
-		`House price data runs to ${meta.monthLabels[last]}. ` +
-		`Real prices are shown in ${meta.cpiBase} money, the latest month of CPI data.`;
+		`House price data runs to ${meta.monthLabels[last]}, the most recent available — ` +
+		`the Land Registry index lags a few months behind the present because of how long ` +
+		`sales take to register. Real prices are shown in ${meta.cpiBase} money, the latest month of CPI data.`;
 }
 
 async function start() {
