@@ -69,10 +69,16 @@ web/                        The website - this folder is what gets deployed
 
 ## Updating the data
 
-The Land Registry publishes new HPI data monthly. To refresh everything:
+The Land Registry publishes new HPI data monthly. To refresh everything on RaspberryPi, first do a docker build using the dockerfile.
+Then need to create the container for the automated data updates
+
+```
+docker create -it --name uk_house_prices -v "$(pwd)":/app uk_house_prices:v1 /bin/bash
+```
+`-v` does the mount to access all the files in the repo, and `/bin/bash` and `-it` make it an interactive container that stays open after it's started.
 
 ```bash
-venv\Scripts\python.exe src\00_pipeline.py
+python src\00_pipeline.py
 ```
 
 This downloads the latest source files, reprocesses them, and regenerates
