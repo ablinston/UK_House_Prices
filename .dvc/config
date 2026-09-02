@@ -1,0 +1,7 @@
+[core]
+    remote = storage
+['remote "storage"']
+    url = s3://ab-uk-house-prices
+    endpointurl = https://s3.eu-central-003.backblazeb2.com
+    access_key_id = 0037eef1310d56d0000000005
+    secret_access_key = K003WJlQ4vSwcXqFAvGX8d7Xgyxf0xA
