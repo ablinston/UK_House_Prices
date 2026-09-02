@@ -1,0 +1,57 @@
+{
+  "name": "UK House Prices",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "remoteUser": "root",
+
+  // Host credentials, bind-mounted read-only. Nothing here is baked into the
+  // image or written back to the host — see postCreate.sh for how each is
+  // wired up inside the container.
+  "mounts": [
+    "source=${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig-host,type=bind,consistency=cached,readonly",
+    "source=${localEnv:USERPROFILE}/.ssh,target=/tmp/host-ssh,type=bind,consistency=cached,readonly",
+    "source=${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached,readonly",
+    "source=${localEnv:USERPROFILE}/.claude.json,target=/root/.claude.json,type=bind,consistency=cached,readonly"
+  ],
+
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+
+  // Mirrors your current Cursor extensions so they're auto-installed inside
+  // the container too. Left out: anysphere.remote-containers/-ssh/-wsl,
+  // which are the client-side extensions that make the remote connection in
+  // the first place and don't do anything running on the remote end itself.
+  // docker.docker / ms-azuretools.vscode-docker / vscode-containers will
+  // install but stay inert here — they need the host's Docker socket
+  // mounted in to actually control Docker, which this config doesn't do.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anysphere.cursorpyright",
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.isort",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyter-renderers",
+        "ms-toolsai.vscode-jupyter-cell-tags",
+        "ms-toolsai.vscode-jupyter-slideshow",
+        "ms-toolsai.datawrangler",
+        "luma.jupyter",
+        "formulahendry.code-runner",
+        "ms-vscode.live-server",
+        "qwtel.sqlite-viewer",
+        "reditorsupport.r",
+        "reditorsupport.r-syntax",
+        "docker.docker",
+        "ms-azuretools.vscode-docker",
+        "ms-azuretools.vscode-containers"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python3"
+      }
+    }
+  }
+}
