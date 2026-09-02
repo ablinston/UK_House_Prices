@@ -76,7 +76,9 @@ The controls panel uses a CSS **container query** (`@container controls`), not a
 
 ## Deployment
 
-The deployable artefact is the `web/` folder — static files only. Target is Cloudflare Pages, by dashboard upload or `npx wrangler pages deploy web`. Because `web/data/` is gitignored, a git-connected build would lack the data; deploy by direct upload, or run the pipeline in CI first.
+The deployable artefact is the `web/` folder — static files only. It's deployed as a Cloudflare Worker with static assets (`wrangler.jsonc`, no script, no build step - see `assets.directory`), git-connected to this repo so pushing to the connected branch deploys automatically via Cloudflare's own build runners.
+
+Unlike the rest of `data/`, `web/data/` is **not** gitignored (see the `!web/data/**` exception in `.gitignore`) - it's small (~2 MB) and is the actual deploy payload, so it's committed deliberately. After every data refresh, re-run the pipeline (or just `python src/06_export_web_data.py`) and commit the result - a push with stale `web/data/` deploys stale data.
 
 ## Attribution is mandatory
 
