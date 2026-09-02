@@ -15,14 +15,16 @@ This was converted from a Shiny for Python app. There is no longer any Python in
 
 ## Commands
 
-Activate the venv first (Windows): `venv\Scripts\activate.bat`
+Preferred: open the repo in the dev container (`.devcontainer/`, backed by the root `Dockerfile`) — Cursor/VS Code → "Reopen in Container". It ships Python 3.9, `requirements.txt` pre-installed, and git + the Claude Code CLI, with git/SSH and Claude credentials bind-mounted in from the host (see `.devcontainer/postCreate.sh`). The repo is mounted at `/workspace` inside the container.
+
+Without the container, activate the venv first (Windows): `venv\Scripts\activate.bat`
 
 - **Preview the site**: `run_website_locally.bat` → <http://localhost:8000>. This runs `serve.py`, which is `http.server` plus no-cache headers — **use it rather than `python -m http.server`**, whose caching serves stale ES modules and surfaces them as misleading "does not provide an export named ..." errors.
 - **Full data refresh**: `python src\00_pipeline.py` — chains steps 01→06
 - **Regenerate web assets only**: `python src\06_export_web_data.py`
 - **Fetch data without rebuilding**: `dvc pull`
 
-There is no test suite, linter config, or Node toolchain. Node is not installed on this machine — do not introduce a build step that requires it without checking first.
+There is no test suite, linter config, or Node toolchain. Node is not installed on this machine — do not introduce a build step that requires it without checking first. (The dev container installs the Claude Code CLI via its native installer, not npm, so this still holds.)
 
 ## Architecture
 
@@ -37,13 +39,16 @@ There is no test suite, linter config, or Node toolchain. Node is not installed 
 This is the part that needs understanding before changing anything on either side of the boundary. `src/06_export_web_data.py` writes to `web/data/`:
 
 - `prices-N.bin` — one file per housing type, a `uint16` matrix of `[area][month]`. Values are an index relative to that area's **first observation** (×1000, `meta.scale`), with `0` as the missing-data sentinel. One file per type so the browser loads the selected type first and streams the rest.
-- `meta.json` — area codes/names (ordered alphabetically by name; array position **is** the area id), month axis as `{start, count}`, the CPI series aligned to that axis, and `base[type][area]` absolute prices.
+- `meta.json` — area codes/names (array position **is** the area id), `geoAreas`, month axis as `{start, count}`, the CPI series aligned to that axis, and `base[type][area]` absolute prices.
 - `lads.geojson` — boundaries filtered to areas that have price data, coordinates rounded to 4dp, `feature.id` set to the **area index** so MapLibre `feature-state` can key off it.
 
-Two invariants tie the halves together and are easy to break:
+Three invariants tie the halves together and are easy to break:
 
 1. **Area index is the join key.** The position of an area in `meta.areas` is its id in `prices-N.bin` rows, in `lads.geojson` `feature.id`, and in every `setFeatureState` call. Reordering `meta.areas` without regenerating everything silently mismatches the data to the map.
-2. **The map only needs ratios.** `growth()` divides two stored indices, so `base` cancels out. Absolute prices (`base * index / scale`) are only needed for the chart. This is why `uint16` is sufficient.
+2. **`meta.areas` is two lists in one.** Indices `[0, geoAreas)` are local authorities, alphabetical, each with a boundary. Indices `[geoAreas, end)` are the national and regional series from `AGGREGATE_CODES` (UK, the four countries, the nine English regions) — they have prices but **no polygon**. Anything that touches the map must stop at `geoAreas`, or it addresses features that do not exist: see `growthByArea` and the `setSelected` guards in `main.js`. Local authorities must therefore stay first.
+3. **The map only needs ratios.** `growth()` divides two stored indices, so `base` cancels out. Absolute prices (`base * index / scale`) are only needed for the chart. This is why `uint16` is sufficient.
+
+The month axis is taken from the local authorities alone (1995 onwards). The national series reach back to 1968, but carrying that history would near-double every matrix for data only 14 areas have, so aggregates are clipped to the same window. If the longer history is ever wanted, put it in a separate small file rather than widening the shared axis.
 
 ### Frontend (`web/js/`, ES modules, no bundler)
 

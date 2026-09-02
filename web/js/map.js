@@ -104,7 +104,7 @@ export function colourBound(values) {
 	return Math.max(magnitudes[Math.min(9, magnitudes.length - 1)], 0.1);
 }
 
-export function createMap(container, { onSelect, describe }) {
+export function createMap(container, { onSelect, describe, onContextLost }) {
 	const map = new maplibregl.Map({
 		container,
 		style: buildStyle(palette()),
@@ -123,6 +123,14 @@ export function createMap(container, { onSelect, describe }) {
 	map.on('error', (event) => {
 		const error = event && event.error ? event.error : event;
 		console.error('Map error:', error && error.message ? error.message : error);
+	});
+
+	// A browser can drop a WebGL context at any time — a GPU driver reset, or
+	// simply too many map tabs open, since contexts are limited per process.
+	// Without this the page sits on "Loading map" forever with no explanation.
+	map.on('webglcontextlost', () => {
+		console.error('WebGL context lost; the map cannot continue.');
+		if (onContextLost) onContextLost();
 	});
 
 	const tooltip = document.createElement('div');

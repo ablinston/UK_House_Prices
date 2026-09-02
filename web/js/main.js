@@ -8,7 +8,7 @@ import { loadMeta, loadType, isLoaded, price, growth, growthByArea, annualise, c
 import { createMap } from './map.js';
 import { createChart } from './chart.js';
 
-const DEFAULT_AREA_CODE = 'E08000003';   // Manchester
+const DEFAULT_AREA_CODE = 'K02000001';   // United Kingdom
 const DEFAULT_START = '2005-01';
 const THUMB = 16;                        // matches the slider thumb in style.css
 
@@ -176,7 +176,8 @@ function renderAreaDetail() {
 function setArea(area) {
 	state.area = area;
 	el.areaSelect.value = String(area);
-	mapView.setSelected(area);
+	// National and regional series have no polygon to outline
+	mapView.setSelected(area < meta.geoAreas ? area : null);
 	renderAreaDetail();
 }
 
@@ -227,9 +228,22 @@ function populateControls() {
 		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
 		.join('');
 
-	el.areaSelect.innerHTML = meta.areas
-		.map((area, i) => `<option value="${i}">${area.n}</option>`)
-		.join('');
+	// Grouped so the national and regional series read as a different kind of
+	// thing from the local authorities, rather than as odd entries in an
+	// otherwise alphabetical list
+	const option = (area, i) => `<option value="${i}">${area.n}</option>`;
+	const localAuthorities = meta.areas.slice(0, meta.geoAreas);
+	const aggregates = meta.areas.slice(meta.geoAreas);
+
+	el.areaSelect.innerHTML =
+		(aggregates.length
+			? `<optgroup label="National &amp; regional">` +
+			  aggregates.map((a, k) => option(a, meta.geoAreas + k)).join('') +
+			  `</optgroup>`
+			: '') +
+		`<optgroup label="Local authorities">` +
+		localAuthorities.map(option).join('') +
+		`</optgroup>`;
 
 	const last = meta.nMonths - 1;
 	for (const slider of [el.startSlider, el.endSlider]) {
@@ -265,14 +279,22 @@ async function start() {
 	populateControls();
 
 	chart = createChart(el.chart, meta.types);
-	mapView = createMap('map', { onSelect: setArea, describe: describeArea });
+	mapView = createMap('map', {
+		onSelect: setArea,
+		describe: describeArea,
+		onContextLost: () => {
+			el.mapStatus.hidden = false;
+			el.mapStatus.innerHTML =
+				'<span>The map display was interrupted. Refresh the page to restore it.</span>';
+		},
+	});
 
 	// The selected housing type first, so the map is usable as early as possible
 	await loadType(state.type);
 
 	mapView.whenReady(() => {
 		el.mapStatus.hidden = true;
-		mapView.setSelected(state.area);
+		mapView.setSelected(state.area < meta.geoAreas ? state.area : null);
 		render();
 	});
 

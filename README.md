@@ -18,10 +18,16 @@ The project is in two halves, and they are deliberately decoupled:
 | **Website** (`web/`) | Plain HTML, CSS and JavaScript. No build step, no framework, no server-side code. |
 
 The website does all its computation in the browser. The entire price dataset —
-360 local authorities x 373 months x 5 housing types — is about 1.3 MB, so it is
-shipped to the client and every interaction (recolouring the map, redrawing the
-chart, recalculating growth) is local arithmetic. Nothing is computed per user
-on a server.
+374 areas x 373 months x 5 housing types — is about 1.3 MB, so it is shipped to
+the client and every interaction (recolouring the map, redrawing the chart,
+recalculating growth) is local arithmetic. Nothing is computed per user on a
+server.
+
+Those 374 areas are 360 local authorities, which appear on the map, plus 14
+national and regional series (the UK, the four countries, and the nine English
+regions). The aggregates have no boundary and are selectable from the dropdown
+only; the UK is the default, so the first thing a visitor sees is the national
+picture.
 
 That means the site is a folder of static files. It can be hosted for free with
 effectively unlimited concurrent users, because serving it costs no more than

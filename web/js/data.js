@@ -36,6 +36,8 @@ export async function loadMeta() {
 	meta = await response.json();
 	meta.nAreas = meta.areas.length;
 	meta.nMonths = meta.months.count;
+	// Areas [0, geoAreas) have boundaries; the rest are national/regional series
+	if (typeof meta.geoAreas !== 'number') meta.geoAreas = meta.nAreas;
 
 	const { times, labels } = buildMonths(meta.months.start, meta.nMonths);
 	meta.monthTimes = times;
@@ -99,10 +101,12 @@ export function growth(type, area, start, end, real) {
 	return (ratio - 1) * 100;
 }
 
-/** Growth for every area at once — the array the choropleth is built from. */
+/** Growth for every mappable area — the array the choropleth is built from.
+ *  Stops at geoAreas: the national and regional series that follow have no
+ *  boundary, and asking the map to colour them would address missing features. */
 export function growthByArea(type, start, end, real) {
-	const values = new Float64Array(meta.nAreas);
-	for (let area = 0; area < meta.nAreas; area++) {
+	const values = new Float64Array(meta.geoAreas);
+	for (let area = 0; area < meta.geoAreas; area++) {
 		values[area] = growth(type, area, start, end, real);
 	}
 	return values;

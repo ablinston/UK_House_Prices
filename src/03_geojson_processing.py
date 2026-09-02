@@ -1,5 +1,11 @@
 exec(open('global.py').read())
 
+# geopandas (+ pyproj, shapely, Fiona) is deliberately NOT listed in requirements.txt:
+# Fiona has no Linux ARM64 wheel on PyPI at any version, which breaks this
+# file's install on the Pi. It's only needed by
+# src/03_geojson_processing.py, which is Windows-only - install it
+# separately there (`pip install geopandas pyproj shapely Fiona`)
+
 ####################
 # Process the geojson data
 

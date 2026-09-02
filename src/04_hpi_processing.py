@@ -5,14 +5,12 @@ exec(open('global.py').read())
 # Process the land registry data
 
 # Read in the house price index data
-uk_hpi_data = dt.fread('raw_data/UK-HPI-full-file.csv')
+uk_hpi_data = pd.read_csv('raw_data/UK-HPI-full-file.csv')
 
 # Convert the date column to date format
-uk_hpi_data[:, dt.update(Date = dt.time.ymd(dt.as_type(dt.str.slice(dt.f.Date, 6, 10), int), 
-                                            dt.as_type(dt.str.slice(dt.f.Date, 3, 5), int),
-                                            dt.as_type(dt.str.slice(dt.f.Date, 0, 2), int)))]
+uk_hpi_data['Date'] = pd.to_datetime(uk_hpi_data['Date'], format = '%d/%m/%Y')
 
-uk_hpi_data = uk_hpi_data.to_pandas().rename(columns = {'AveragePrice': 'OverallPrice'})
+uk_hpi_data = uk_hpi_data.rename(columns = {'AveragePrice': 'OverallPrice'})
 
 # Calculate sales volume
 uk_hpi_data['SalesVolume'] = uk_hpi_data['OldSalesVolume'] + uk_hpi_data['NewSalesVolume']

@@ -19,6 +19,26 @@ OUT_DIR = 'web/data'
 SCALE = 1000          # index units: first observation for an area = 1000
 COORD_DP = 4          # ~11 m precision, ample at national zoom
 
+# National and regional series, kept alongside the local authorities so an area
+# can be compared with its region and with the UK as a whole. These have no
+# boundary on the map: they are selectable from the dropdown only, and are
+# appended after the local authorities so that an area's position in the list
+# still doubles as its feature id in lads.geojson.
+AGGREGATE_CODES = ['K02000001',   # United Kingdom
+                   'E92000001',   # England
+                   'W92000004',   # Wales
+                   'S92000003',   # Scotland
+                   'N92000002',   # Northern Ireland
+                   'E12000001',   # North East
+                   'E12000002',   # North West
+                   'E12000003',   # Yorkshire and The Humber
+                   'E12000004',   # East Midlands
+                   'E12000005',   # West Midlands Region
+                   'E12000006',   # East of England
+                   'E12000007',   # London
+                   'E12000008',   # South East
+                   'E12000009']   # South West
+
 housing_types = ['Overall',
                  'Detached',
                  'SemiDetached',
@@ -35,22 +55,42 @@ uk_hpi_data = pd.read_parquet('data/uk_hpi_data.parquet')
 lad_list = pd.read_parquet('data/lad_list.parquet')
 cpi_data = pd.read_parquet('data/uk_cpi.parquet')
 
-# Keep only areas that have both a boundary and price data
-hpi = uk_hpi_data[uk_hpi_data['AreaCode'].isin(lad_list['ID'])].copy()
-hpi['Date'] = pd.to_datetime(hpi['Date'])
+uk_hpi_data['Date'] = pd.to_datetime(uk_hpi_data['Date'])
 
-# Area codes and names, ordered by name so the dropdown is alphabetical
-areas = (hpi[['AreaCode', 'RegionName']]
-         .drop_duplicates(subset = 'AreaCode')
-         .sort_values('RegionName')
-         .reset_index(drop = True))
+# Local authorities: those with both a boundary and price data, ordered by name
+lad_rows = uk_hpi_data[uk_hpi_data['AreaCode'].isin(lad_list['ID'])]
+lad_areas = (lad_rows[['AreaCode', 'RegionName']]
+             .drop_duplicates(subset = 'AreaCode')
+             .sort_values('RegionName'))
 
+# Aggregates, kept in the order declared above rather than alphabetically
+agg_rows = uk_hpi_data[uk_hpi_data['AreaCode'].isin(AGGREGATE_CODES)]
+agg_areas = (agg_rows[['AreaCode', 'RegionName']]
+             .drop_duplicates(subset = 'AreaCode')
+             .set_index('AreaCode')
+             .reindex([c for c in AGGREGATE_CODES if c in set(agg_rows['AreaCode'])])
+             .reset_index())
+
+missing_aggregates = [c for c in AGGREGATE_CODES if c not in set(agg_rows['AreaCode'])]
+if missing_aggregates:
+    print(f'  WARNING: aggregate series not found in the data: {missing_aggregates}')
+
+areas = pd.concat([lad_areas, agg_areas], ignore_index = True)
 area_index = {code: i for i, code in enumerate(areas['AreaCode'])}
 
-# Contiguous monthly axis covering the area-level data
-months = pd.date_range(hpi['Date'].min(), hpi['Date'].max(), freq = 'MS')
+# Only the local authorities have boundaries, and they come first, so this count
+# is also the number of features in lads.geojson
+geo_areas = len(lad_areas)
 
-print(f'Areas:  {len(areas)}')
+hpi = pd.concat([lad_rows, agg_rows], ignore_index = True)
+
+# The month axis is taken from the local authorities alone. The national series
+# reach back to 1968, but carrying that history would near-double every matrix
+# for data only a handful of areas have, so aggregates are clipped to the same
+# window and compare like with like.
+months = pd.date_range(lad_rows['Date'].min(), lad_rows['Date'].max(), freq = 'MS')
+
+print(f'Areas:  {len(areas)} ({geo_areas} local authorities + {len(agg_areas)} aggregates)')
 print(f'Months: {len(months)} ({months[0]:%Y-%m} to {months[-1]:%Y-%m})')
 
 
@@ -119,6 +159,7 @@ meta = {
     'scale': SCALE,
     'types': housing_types,
     'months': {'start': f'{months[0]:%Y-%m}', 'count': len(months)},
+    'geoAreas': geo_areas,
     'areas': [{'c': c, 'n': n} for c, n in zip(areas['AreaCode'], areas['RegionName'])],
     'cpi': [round(float(v), 6) for v in cpi],
     'cpiBase': f'{cpi_base_date:%B %Y}',
@@ -176,10 +217,12 @@ for feature in boundaries['features']:
 with open(f'{OUT_DIR}/lads.geojson', 'w') as f:
     j.dump({'type': 'FeatureCollection', 'features': features}, f, separators = (',', ':'))
 
+# Aggregates are expected to have no boundary; a local authority without one is
+# a genuine mismatch between the price data and the geography release
 mapped = {feature['properties']['i'] for feature in features}
-missing = [code for code, i in area_index.items() if i not in mapped]
+missing = [code for code, i in area_index.items() if i < geo_areas and i not in mapped]
 if missing:
-    print(f'  WARNING: {len(missing)} areas have prices but no boundary')
+    print(f'  WARNING: {len(missing)} local authorities have prices but no boundary')
 
 
 ####################

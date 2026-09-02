@@ -1,6 +1,11 @@
-import datatable as dt
 from datetime import date, datetime, timedelta
-import geopandas as gp
+try:
+    # Only needed by src/03_geojson_processing.py, which is Windows-only -
+    # geopandas pulls in Fiona, which has no Linux ARM64 wheel and so isn't
+    # installed in the Docker image used on the Raspberry Pi.
+    import geopandas as gp
+except ImportError:
+    gp = None
 import json as j
 import numpy as np
 import os
