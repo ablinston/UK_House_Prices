@@ -115,6 +115,7 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 		attributionControl: false,
 		dragRotate: false,
 		pitchWithRotate: false,
+		cooperativeGestures: true,
 	});
 
 	map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
