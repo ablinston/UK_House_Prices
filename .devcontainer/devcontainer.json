@@ -1,21 +1,21 @@
 {
   "name": "UK House Prices",
-  "build": {
-    "dockerfile": "../Dockerfile",
-    "context": ".."
-  },
+  "image": "uk_house_prices:v1",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "remoteUser": "root",
 
   // Host credentials, bind-mounted read-only. Nothing here is baked into the
   // image or written back to the host — see postCreate.sh for how each is
-  // wired up inside the container.
+  // wired up inside the container. The .claude files are staged under /tmp
+  // and copied to a writable container-local path, since Claude Code
+  // continuously rewrites them with refreshed session/auth state — using
+  // the readonly mount directly makes login look like it silently reverts.
   "mounts": [
     "source=${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig-host,type=bind,consistency=cached,readonly",
     "source=${localEnv:USERPROFILE}/.ssh,target=/tmp/host-ssh,type=bind,consistency=cached,readonly",
-    "source=${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached,readonly",
-    "source=${localEnv:USERPROFILE}/.claude.json,target=/root/.claude.json,type=bind,consistency=cached,readonly"
+    "source=${localEnv:USERPROFILE}/.claude,target=/tmp/host-claude,type=bind,consistency=cached,readonly",
+    "source=${localEnv:USERPROFILE}/.claude.json,target=/tmp/host-claude.json,type=bind,consistency=cached,readonly"
   ],
 
   "postCreateCommand": "bash .devcontainer/postCreate.sh",
