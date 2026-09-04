@@ -4,5 +4,6 @@ __pycache__/
 *.csv
 *.parquet
 *.geojson
+*.zip
 !web/data/**
 

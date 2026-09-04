@@ -1,9 +1,15 @@
-/* The choropleth map: MapLibre GL with a GeoJSON source and no basemap tiles.
+/* The choropleth map: MapLibre GL with GeoJSON sources and no basemap tiles.
  *
  * Colours are driven entirely by feature-state, so recolouring is a per-feature
  * state update rather than a re-render of the geometry. The normalised value
  * `n` is clamped to [-1, 1]; NO_DATA sits far outside that range so the paint
  * expression can distinguish "no observation" from "no change".
+ *
+ * There is still no tile basemap, but the map is not left unlabelled either:
+ * the local authority polygons draw the coastline for free, and places.geojson
+ * adds city and town labels on top for orientation. Both the glyphs and the
+ * place data are served from this origin, so the page depends on no external
+ * tile service — see CLAUDE.md for why that constraint exists.
  *
  * Every colour is read from the CSS custom properties in css/style.css, so the
  * map follows the visitor's light/dark browser setting along with the rest of
@@ -11,6 +17,13 @@
 
 const NO_DATA = -999;
 const UK_BOUNDS = [[-8.8, 49.8], [2.1, 61.1]];
+
+/* Place labels are ranked 0 (biggest cities) to 4 (towns) by src/07. Revealing
+ * a rank per zoom level keeps the national view readable: at the opening zoom
+ * only the couple of dozen largest cities are eligible, and MapLibre's own
+ * collision detection thins even those where they crowd. */
+const PLACE_RANK_FOR_ZOOM = ['step', ['zoom'], 0, 6, 1, 7, 2, 8, 3, 9, 4];
+const PLACE_FILTER = ['<=', ['get', 'r'], PLACE_RANK_FOR_ZOOM];
 
 function cssVar(name, fallback) {
 	const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -27,6 +40,8 @@ function palette() {
 		positive: cssVar('--ramp-pos', '#0f766e'),
 		hover: cssVar('--text', '#0d1117'),
 		selected: cssVar('--accent-bright', '#2563eb'),
+		place: cssVar('--map-place', '#333b49'),
+		placeHalo: cssVar('--map-place-halo', 'rgba(255,255,255,0.85)'),
 	};
 }
 
@@ -47,8 +62,13 @@ function fillColour(colours) {
 function buildStyle(colours) {
 	return {
 		version: 8,
+		// Self-hosted so no tile service is involved. Only the 0-255 range is
+		// committed, which covers every name in places.geojson; src/07 warns if
+		// a data refresh ever introduces a character beyond it.
+		glyphs: 'vendor/fonts/glyphs/{fontstack}/{range}.pbf',
 		sources: {
 			lads: { type: 'geojson', data: 'data/lads.geojson' },
+			places: { type: 'geojson', data: 'data/places.geojson' },
 		},
 		layers: [
 			{
@@ -84,6 +104,51 @@ function buildStyle(colours) {
 				paint: {
 					'line-color': colours.selected,
 					'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.4, 0],
+				},
+			},
+			// Places sit above the choropleth. Underneath a fill they would be
+			// invisible without making the fill translucent, which would distort
+			// the very colours the map exists to show; a halo does the job of
+			// keeping them legible over any part of the ramp instead.
+			{
+				id: 'places-dot',
+				type: 'circle',
+				source: 'places',
+				filter: PLACE_FILTER,
+				paint: {
+					'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1.4, 9, 2.6],
+					'circle-color': colours.place,
+					'circle-opacity': 0.8,
+					'circle-stroke-width': 0.8,
+					'circle-stroke-color': colours.placeHalo,
+				},
+			},
+			{
+				id: 'places-label',
+				type: 'symbol',
+				source: 'places',
+				filter: PLACE_FILTER,
+				layout: {
+					'text-field': ['get', 'n'],
+					'text-font': ['NotoSans-Regular'],
+					'text-size': ['interpolate', ['linear'], ['zoom'], 4, 9.5, 8, 11.5, 11, 13],
+					// Letting MapLibre try the other side of the dot before it
+					// gives up places noticeably more labels at national zoom,
+					// where the likes of Glasgow and Edinburgh sit close enough
+					// to fight over the same space
+					'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+					'text-radial-offset': 0.5,
+					'text-justify': 'auto',
+					'text-padding': 2,
+					'text-max-width': 8,
+					// Population order, so the bigger settlement wins a collision
+					'symbol-sort-key': ['get', 's'],
+				},
+				paint: {
+					'text-color': colours.place,
+					'text-halo-color': colours.placeHalo,
+					'text-halo-width': 1.4,
+					'text-halo-blur': 0.2,
 				},
 			},
 		],
@@ -217,6 +282,10 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 		map.setPaintProperty('lads-outline', 'line-color', colours.line);
 		map.setPaintProperty('lads-hover', 'line-color', colours.hover);
 		map.setPaintProperty('lads-selected', 'line-color', colours.selected);
+		map.setPaintProperty('places-dot', 'circle-color', colours.place);
+		map.setPaintProperty('places-dot', 'circle-stroke-color', colours.placeHalo);
+		map.setPaintProperty('places-label', 'text-color', colours.place);
+		map.setPaintProperty('places-label', 'text-halo-color', colours.placeHalo);
 	});
 
 	map.on('mousemove', 'lads-fill', (event) => {

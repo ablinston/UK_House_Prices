@@ -40,6 +40,10 @@
 	--ramp-neg: #be123c;
 	--ramp-mid: #f8fafc;
 	--ramp-pos: #0f766e;
+	/* City and town labels. These sit over the ramp, so the halo has to hold up
+	   against both ends of it as well as against the water. */
+	--map-place: #333b49;
+	--map-place-halo: rgba(255, 255, 255, 0.85);
 
 	/* Chart series, in housing-type order */
 	--series-0: #0d1117;
@@ -85,6 +89,8 @@
 		--ramp-neg: #e11d48;
 		--ramp-mid: #272e3a;
 		--ramp-pos: #14b8a6;
+		--map-place: #dfe4ec;
+		--map-place-halo: rgba(6, 9, 14, 0.8);
 
 		--series-0: #e7eaf0;
 		--series-1: #2dd4bf;
