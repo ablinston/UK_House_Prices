@@ -1,0 +1,6 @@
+# Line endings are part of whether these files run at all, not a matter of
+# taste: bash rejects a script with CRLF ("$'\r': command not found"), and
+# cmd.exe is unreliable with an LF-only batch file. Pin both so a checkout on
+# Windows cannot break them.
+*.sh  text eol=lf
+*.bat text eol=crlf
