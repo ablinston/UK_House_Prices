@@ -4,13 +4,14 @@
  * All computation happens here in the browser — the server only ever serves
  * static files. */
 
-import { loadMeta, loadType, isLoaded, price, growth, growthByArea, annualise, coverage } from './data.js';
-import { createMap } from './map.js';
+import { loadMeta, loadType, isLoaded, price, growth, growthByArea, priceByArea, annualise, coverage } from './data.js';
+import { createMap } from './map-canvas.js';
 import { createChart } from './chart.js';
 
 const DEFAULT_AREA_CODE = 'K02000001';   // United Kingdom
 const DEFAULT_START = '2005-01';
 const THUMB = 16;                        // matches the slider thumb in style.css
+const CTA_SEEN_KEY = 'ukhp.map-cta-seen';
 
 const el = {
 	startSlider: document.getElementById('start-month'),
@@ -21,20 +22,31 @@ const el = {
 	houseType: document.getElementById('house-type'),
 	priceBasis: document.getElementById('price-basis'),
 	areaSelect: document.getElementById('area-select'),
+	mapModes: document.querySelectorAll('input[name="map-mode"]'),
+	mapEl: document.getElementById('map'),
+	headline: document.getElementById('headline'),
 	headlineValue: document.getElementById('headline-value'),
 	headlineLabel: document.getElementById('headline-label'),
 	stats: document.querySelector('#stats tbody'),
 	chart: document.getElementById('chart'),
 	chartTitle: document.getElementById('chart-title'),
 	mapStatus: document.getElementById('map-status'),
+	mapCta: document.getElementById('map-cta'),
+	headlineArea: document.getElementById('headline-area'),
+	areaPanel: document.getElementById('area-panel'),
 	legend: document.getElementById('legend'),
+	legendTitle: document.getElementById('legend-title'),
+	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
 	topbarMeta: document.getElementById('topbar-meta'),
 	basisNote: document.getElementById('basis-note'),
 };
 
-const state = { start: 0, end: 0, type: 0, real: true, area: 0 };
+// mapMode colours the map by change over the range ('change') or by the average
+// price in the end month ('price'). It moves nothing else: the headline, stats
+// and chart always describe the selected area over the whole range.
+const state = { start: 0, end: 0, type: 0, real: true, area: 0, mapMode: 'change' };
 
 let meta = null;
 let mapView = null;
@@ -55,6 +67,43 @@ function toneOf(value) {
 	return value >= 0 ? 'up' : 'down';
 }
 
+function basisLabel() {
+	const measure = state.mapMode === 'price' ? 'average price' : 'change';
+	return `${state.real ? 'Real' : 'Nominal'} ${measure} · ${typeLabel(meta.types[state.type])}`;
+}
+
+/* Compact in the legend, where there is room for about six characters either
+ * side of the ramp, and in full in the tooltip, where the exact figure is the
+ * whole point of hovering. */
+function formatMoney(value, compact = false) {
+	if (!Number.isFinite(value)) return '—';
+	if (!compact) return `£${Math.round(value).toLocaleString('en-GB')}`;
+	if (value >= 1e6) return `£${(value / 1e6).toFixed(1)}m`;
+	if (value >= 1e3) return `£${Math.round(value / 1e3)}k`;
+	return `£${Math.round(value)}`;
+}
+
+/* Storage is unavailable in some privacy modes and throws rather than returning
+ * nothing, and a prompt shown twice is a far smaller problem than a page that
+ * fails to start. */
+function ctaAlreadySeen() {
+	try {
+		return localStorage.getItem(CTA_SEEN_KEY) === '1';
+	} catch (error) {
+		return false;
+	}
+}
+
+function retireCta() {
+	if (el.mapCta.hidden) return;
+	el.mapCta.hidden = true;
+	try {
+		localStorage.setItem(CTA_SEEN_KEY, '1');
+	} catch (error) {
+		/* it simply reappears next visit */
+	}
+}
+
 /* ---------- rendering ---------- */
 
 function renderRange() {
@@ -73,13 +122,28 @@ function renderRange() {
 }
 
 function renderMap() {
-	const values = growthByArea(state.type, state.start, state.end, state.real);
-	const bound = mapView.setValues(values);
+	const showPrice = state.mapMode === 'price';
+	const values = showPrice
+		? priceByArea(state.type, state.end, state.real)
+		: growthByArea(state.type, state.start, state.end, state.real);
 
-	if (bound !== null) {
+	const domain = mapView.setValues(values, state.mapMode);
+
+	// Named on the legend as well as in the panel, so the map still says what
+	// it is measuring when it is the only thing on screen
+	el.legendTitle.textContent = basisLabel();
+
+	if (domain !== null) {
+		// Both ends of both ramps are trimmed rather than true extremes, so the
+		// labels read as the scale they are, not as the range of the data.
 		el.legend.hidden = false;
-		el.legendMin.textContent = formatPercent(-bound, 0);
-		el.legendMax.textContent = formatPercent(bound, 0);
+		el.legendRamp.classList.toggle('is-sequential', showPrice);
+		el.legendMin.textContent = showPrice
+			? formatMoney(domain.lo, true)
+			: formatPercent(domain.lo, 0);
+		el.legendMax.textContent = showPrice
+			? formatMoney(domain.hi, true)
+			: formatPercent(domain.hi, 0);
 	}
 }
 
@@ -88,6 +152,7 @@ function renderHeadline() {
 	const total = loaded ? growth(state.type, state.area, state.start, state.end, state.real) : NaN;
 
 	el.headlineValue.className = `headline-value ${toneOf(total)}`;
+	el.headlineArea.textContent = meta.areas[state.area].n;
 
 	const basis = state.real ? 'Real' : 'Nominal';
 	const period = `${meta.monthLabels[state.start]} to ${meta.monthLabels[state.end]}`;
@@ -171,6 +236,19 @@ function renderAreaDetail() {
 	renderChart();
 }
 
+/* The background housing types resolve independently, so their redraws are
+ * coalesced the same way slider bursts are - two landing in one frame should
+ * cost one repaint of the chart, not two. */
+let detailFrame = null;
+
+function scheduleAreaDetail() {
+	if (detailFrame) return;
+	detailFrame = schedule(() => {
+		detailFrame = null;
+		renderAreaDetail();
+	});
+}
+
 /* ---------- interaction ---------- */
 
 // The map is built before meta.json is awaited, so both of these — the only
@@ -178,19 +256,51 @@ function renderAreaDetail() {
 // is any metadata to read. In practice meta.json is long since in by the time
 // the boundaries are loaded and hoverable, but neither should depend on that.
 
-function setArea(area) {
+function setArea(area, fromMap = false) {
 	if (!meta) return;
 	state.area = area;
 	el.areaSelect.value = String(area);
 	// National and regional series have no polygon to outline
 	mapView.setSelected(area < meta.geoAreas ? area : null);
 	renderAreaDetail();
+
+	if (!fromMap) return;
+
+	retireCta();
+
+	// On a phone the reading is below the map, so without this the tap can
+	// look like it did nothing. The headline is the target rather than the
+	// whole panel: the panel is taller than a phone screen, so scrolling that
+	// into view would align its top and carry the map - and the area just
+	// selected - clean off the screen. 'nearest' then does nothing at all when
+	// the reading is already visible, which is the usual case on a wide one.
+	el.headline.scrollIntoView({
+		behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+		block: 'nearest',
+	});
+
+	el.areaPanel.classList.remove('is-updated');
+	void el.areaPanel.offsetWidth;   // restart the animation on a repeat click
+	el.areaPanel.classList.add('is-updated');
 }
 
 function describeArea(area) {
 	if (!meta) return '';
-	const value = growth(state.type, area, state.start, state.end, state.real);
-	return `<b>${meta.areas[area].n}</b><br><span class="tip-value">${formatPercent(value)}</span>`;
+
+	const reading = state.mapMode === 'price'
+		? formatMoney(price(state.type, area, state.end, state.real))
+		: formatPercent(growth(state.type, area, state.start, state.end, state.real));
+
+	return `<b>${meta.areas[area].n}</b><br><span class="tip-value">${reading}</span>`;
+}
+
+/* The map is the one thing on the page whose meaning changes underneath the
+ * reader, so its accessible name is kept in step with the toggle rather than
+ * left at whatever it said when the page loaded. */
+function applyMapMode() {
+	el.mapEl.setAttribute('aria-label', state.mapMode === 'price'
+		? 'Map of UK local authorities coloured by average house price'
+		: 'Map of UK local authorities coloured by house price change');
 }
 
 function wireControls() {
@@ -220,6 +330,17 @@ function wireControls() {
 	el.areaSelect.addEventListener('change', () => {
 		setArea(Number(el.areaSelect.value));
 	});
+
+	// Only the map changes, so this repaints it directly instead of going
+	// through render() and rebuilding the chart and the table for nothing.
+	for (const radio of el.mapModes) {
+		radio.addEventListener('change', () => {
+			if (!radio.checked) return;
+			state.mapMode = radio.value;
+			applyMapMode();
+			renderMap();
+		});
+	}
 }
 
 /* ---------- startup ---------- */
@@ -228,6 +349,22 @@ function monthKey(index) {
 	const [year, month] = meta.months.start.split('-').map(Number);
 	const date = new Date(Date.UTC(year, month - 1 + index, 1));
 	return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/* "Click any area" is wrong advice on a phone. The media query gets it right
+ * up front for phones and tablets; the touch listener then catches anything it
+ * misjudged - a laptop with a touchscreen reports a fine pointer, and its owner
+ * should still be told to tap once they have actually touched the screen. */
+function useTapWording() {
+	for (const node of document.querySelectorAll('.pointer-verb')) node.textContent = 'Tap';
+}
+
+function applyPointerVerb() {
+	if (window.matchMedia('(pointer: coarse)').matches) {
+		useTapWording();
+		return;
+	}
+	window.addEventListener('touchstart', useTapWording, { once: true, passive: true });
 }
 
 function populateControls() {
@@ -272,6 +409,13 @@ function populateControls() {
 	state.area = defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
 
+	// Browsers restore checked radios across a reload, so the toggle is read
+	// rather than assumed — otherwise the map and the control disagree after
+	// a refresh that puts the toggle back on "Average price".
+	const checked = Array.from(el.mapModes).find((radio) => radio.checked);
+	if (checked) state.mapMode = checked.value;
+	applyMapMode();
+
 	// Two genuinely different dates, so both are stated in full rather than
 	// abbreviated to an ambiguous "updated": how far the price data runs, and
 	// which month's money real prices are expressed in.
@@ -289,7 +433,7 @@ async function start() {
 	// rather than after the await means they are in flight alongside
 	// meta.json instead of queueing behind its round trip.
 	mapView = createMap('map', {
-		onSelect: setArea,
+		onSelect: (area) => setArea(area, true),
 		describe: describeArea,
 		onContextLost: () => {
 			el.mapStatus.hidden = false;
@@ -304,6 +448,8 @@ async function start() {
 	// rejection in the window before that await is reached.
 	pricesReady.catch(() => {});
 
+	applyPointerVerb();
+
 	meta = await loadMeta();
 	populateControls();
 
@@ -314,6 +460,8 @@ async function start() {
 	mapView.whenReady(() => {
 		el.mapStatus.hidden = true;
 		mapView.setSelected(state.area < meta.geoAreas ? state.area : null);
+		// Held back until there is a map to point at
+		if (!ctaAlreadySeen()) el.mapCta.hidden = false;
 		render();
 	});
 
@@ -321,11 +469,20 @@ async function start() {
 	render();
 
 	// The remaining types stream in behind the first paint; each one fills in
-	// another line on the chart and another row of the stats table.
-	meta.types.forEach((_, i) => {
-		if (i === state.type) return;
-		loadType(i).then(renderAreaDetail);
-	});
+	// another line on the chart and another row of the stats table. Held back
+	// to an idle callback because they are 1.1 MB between them and nothing on
+	// screen is waiting on them: letting the main thread and the connection go
+	// quiet first is what lets the page settle, and the page settling is what
+	// ends the window Total Blocking Time is measured over.
+	const loadRemaining = () => {
+		meta.types.forEach((_, i) => {
+			if (i === state.type) return;
+			loadType(i).then(scheduleAreaDetail).catch((error) => console.error(error));
+		});
+	};
+
+	if ('requestIdleCallback' in window) requestIdleCallback(loadRemaining, { timeout: 2500 });
+	else setTimeout(loadRemaining, 500);
 }
 
 start().catch((error) => {

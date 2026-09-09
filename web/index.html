@@ -9,22 +9,23 @@
 
 <link rel="preload" href="vendor/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 
-<!-- Both are fetched by js/data.js with a plain fetch(), which is what makes
-     them reusable from the preload cache. lads.geojson is deliberately not
-     preloaded: MapLibre fetches it itself with an Accept: application/json
-     header, so the preload would not match and the browser would be liable to
-     download the largest file on the site twice. main.js starts the map early
-     instead. -->
+<!-- All three are fetched with a plain fetch(), which is what makes them
+     reusable from the preload cache. lads.geojson is the largest file on the
+     site and gates the map, so starting it here rather than waiting for
+     map-canvas.js to be fetched, parsed and run is worth a preload of its own.
+     (It could not be preloaded while MapLibre owned the fetch: MapLibre sends
+     an Accept: application/json header, the preload would not have matched,
+     and the browser would have downloaded the whole file twice.) -->
+<link rel="preload" href="data/lads.geojson" as="fetch" crossorigin>
 <link rel="preload" href="data/meta.json" as="fetch" crossorigin>
 <link rel="preload" href="data/prices-0.bin" as="fetch" crossorigin>
 
 <!-- main.js is found by the parser, but its imports are not discovered until
      it has been fetched and parsed - a round trip these save. -->
 <link rel="modulepreload" href="js/data.js">
-<link rel="modulepreload" href="js/map.js">
+<link rel="modulepreload" href="js/map-canvas.js">
 <link rel="modulepreload" href="js/chart.js">
 
-<link rel="stylesheet" href="vendor/maplibre-gl.css">
 <link rel="stylesheet" href="vendor/uPlot.min.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -54,10 +55,11 @@
 
   <section class="panel controls" aria-labelledby="controls-heading">
     <h2 id="controls-heading" class="panel-title">Explore</h2>
-    <p class="intro">
-      Pick a date range to see how average sold prices changed. Click any area on
-      the map for its full history.
-    </p>
+    <ol class="steps">
+      <li>Set the date range and housing type.</li>
+      <li><b><span class="pointer-verb">Click</span> any area on the map.</b></li>
+      <li>Its price history appears under <b>Area detail</b>.</li>
+    </ol>
 
     <div class="field">
       <div class="field-head">
@@ -91,6 +93,21 @@
         </div>
       </div>
     </div>
+
+    <div class="field">
+      <span class="field-label" id="map-shows-label">Map shows</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="map-shows-label">
+        <input type="radio" name="map-mode" id="map-mode-change" value="change" checked>
+        <label class="segmented-option" for="map-mode-change">Price change</label>
+        <input type="radio" name="map-mode" id="map-mode-price" value="price">
+        <label class="segmented-option" for="map-mode-price">Average price</label>
+        <span class="segmented-thumb" aria-hidden="true"></span>
+      </div>
+      <p class="field-note">
+        Average price is the level in the end month; price change is the whole
+        range. Both follow the housing type and price basis above.
+      </p>
+    </div>
   </section>
 
   <section class="panel map-panel" aria-labelledby="map-heading">
@@ -102,7 +119,12 @@
       <span>Loading map</span>
     </div>
 
+    <p class="map-cta" id="map-cta" hidden>
+      <span class="pointer-verb">Click</span> any area for its price history
+    </p>
+
     <div class="legend" id="legend" hidden>
+      <div class="legend-title" id="legend-title"></div>
       <div class="legend-scale">
         <span class="legend-label" id="legend-min"></span>
         <span class="legend-ramp" aria-hidden="true"></span>
@@ -112,17 +134,23 @@
     </div>
   </section>
 
-  <section class="panel area-panel" aria-labelledby="area-heading">
+  <section class="panel area-panel" id="area-panel" aria-labelledby="area-heading">
     <div class="area-head">
       <h2 id="area-heading" class="panel-title">Area detail</h2>
       <div class="select-wrap area-select-wrap">
-        <select id="area-select" aria-label="Local authority"></select>
+        <select id="area-select" aria-label="Choose an area"></select>
       </div>
     </div>
 
-    <div class="headline">
+    <div class="headline" id="headline">
+      <div class="headline-area" id="headline-area">—</div>
       <div class="headline-value" id="headline-value">—</div>
       <div class="headline-label" id="headline-label">—</div>
+    </div>
+
+    <div class="chart-block">
+      <h3 id="chart-title" class="chart-title">—</h3>
+      <div id="chart"></div>
     </div>
 
     <div class="stats-wrap">
@@ -133,11 +161,6 @@
         </thead>
         <tbody></tbody>
       </table>
-    </div>
-
-    <div class="chart-block">
-      <h3 id="chart-title" class="chart-title">—</h3>
-      <div id="chart"></div>
     </div>
   </section>
 
@@ -161,10 +184,10 @@
   </div>
 </footer>
 
-<!-- defer so 800KB of MapLibre stops holding up the parser here; deferred
-     classic scripts and module scripts both run after parsing, in document
-     order, so maplibregl and uPlot are still defined before main.js runs. -->
-<script src="vendor/maplibre-gl.js" defer></script>
+<!-- defer, so the parser is never held up here; deferred classic scripts and
+     module scripts both run after parsing, in document order, so uPlot is
+     defined before main.js runs. The map needs no library at all - see
+     js/map-canvas.js. -->
 <script src="vendor/uPlot.iife.min.js" defer></script>
 <script type="module" src="js/main.js"></script>
 

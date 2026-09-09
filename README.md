@@ -73,7 +73,7 @@ The Land Registry publishes new HPI data monthly. To refresh everything on Raspb
 Then need to create the container for the automated data updates
 
 ```
-docker create -it --name uk_house_prices -v "$(pwd)":/app uk_house_prices:v1 /bin/bash
+docker create -it --name uk_house_prices -v "$(pwd)":/workspace uk_house_prices:v1 /bin/bash
 ```
 `-v` does the mount to access all the files in the repo, and `/bin/bash` and `-it` make it an interactive container that stays open after it's started.
 

@@ -14,9 +14,11 @@ const LABELS = {
 	Flat: 'Flat',
 };
 
-function cssVar(name, fallback) {
-	const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-	return value || fallback;
+/* One style resolution per rebuild, read eight times, rather than a separate
+ * getComputedStyle call for every token. */
+function themeTokens() {
+	const style = getComputedStyle(document.documentElement);
+	return (name, fallback) => style.getPropertyValue(name).trim() || fallback;
 }
 
 export function formatPrice(value) {
@@ -39,9 +41,10 @@ export function createChart(container, types) {
 	}
 
 	function buildOptions() {
-		const grid = cssVar('--border', '#e5e8ee');
-		const tick = cssVar('--border-strong', '#d4dae3');
-		const label = cssVar('--text-subtle', '#868e9d');
+		const token = themeTokens();
+		const grid = token('--border', '#e5e8ee');
+		const tick = token('--border-strong', '#d4dae3');
+		const label = token('--text-subtle', '#868e9d');
 
 		return {
 			...size(),
@@ -68,7 +71,7 @@ export function createChart(container, types) {
 				{ label: 'Date' },
 				...types.map((type, i) => ({
 					label: LABELS[type] || type,
-					stroke: cssVar(`--series-${i}`, '#2563eb'),
+					stroke: token(`--series-${i}`, '#2563eb'),
 					width: type === 'Overall' ? 2.2 : 1.3,
 					dash: type === 'Overall' ? undefined : [4, 3],
 					value: (self, raw) => formatPrice(raw),
