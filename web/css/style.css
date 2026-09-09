@@ -532,7 +532,92 @@ select:focus-visible {
 	.spinner { animation-duration: 2s; }
 }
 
-/* MapLibre's own controls, restyled to match */
+/* ---------- Canvas map ---------- */
+
+/* js/map-canvas.js sizes the canvas from the container itself, so all it needs
+   here is to stop being an inline box. touch-action is load-bearing rather than
+   cosmetic: pan-y lets the browser scroll the page with one finger, which is
+   what leaves a two-finger gesture for the map to claim in touchstart. Remove
+   it and a pinch can never assemble — see the touch handling in that file. */
+.map-canvas {
+	display: block;
+	touch-action: pan-y;
+}
+
+/* The container takes a tabindex from the JS so the map can be panned from the
+   keyboard, which earns it a visible focus ring. */
+#map:focus-visible {
+	outline: 2px solid var(--accent-bright);
+	outline-offset: -2px;
+}
+
+/* The map's own zoom buttons, built in buildControls() */
+.map-ctrl {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 4;
+	display: flex;
+	flex-direction: column;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
+}
+
+.map-ctrl button {
+	width: 29px;
+	height: 29px;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text);
+	font: inherit;
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.map-ctrl button + button { border-top: 1px solid var(--border); }
+.map-ctrl button:hover { background: var(--surface-sunken); }
+
+.map-ctrl button:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--accent-bright);
+}
+
+/* The cooperative-gesture overlay. It is shown only for a scroll-to-zoom
+   without the modifier, or a sideways one-finger drag — a vertical swipe is a
+   page scroll, and throwing this across the map every time one passes over
+   would be noise rather than help. */
+.map-gesture-hint {
+	position: absolute;
+	inset: 0;
+	z-index: 6;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	text-align: center;
+	background: color-mix(in srgb, var(--text) 55%, transparent);
+	color: var(--surface);
+	font-size: 13.5px;
+	font-weight: 550;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s ease;
+}
+
+.map-gesture-hint.is-visible { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+	.map-gesture-hint { transition: none; }
+}
+
+/* MapLibre's own controls, restyled to match. Nothing loads MapLibre any more,
+   so these match nothing — they are kept against a switch back to js/map.js,
+   which would also need its script tag and stylesheet link restored. */
 .maplibregl-ctrl-group {
 	background: var(--surface) !important;
 	border: 1px solid var(--border) !important;

@@ -5,7 +5,7 @@
  * static files. */
 
 import { loadMeta, loadType, isLoaded, price, growth, growthByArea, priceByArea, annualise, coverage } from './data.js';
-import { createMap } from './map.js';
+import { createMap } from './map-canvas.js';
 import { createChart } from './chart.js';
 
 const DEFAULT_AREA_CODE = 'K02000001';   // United Kingdom

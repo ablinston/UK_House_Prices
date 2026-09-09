@@ -9,22 +9,22 @@
 
 <link rel="preload" href="vendor/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 
-<!-- Both are fetched by js/data.js with a plain fetch(), which is what makes
-     them reusable from the preload cache. lads.geojson is deliberately not
-     preloaded: MapLibre fetches it itself with an Accept: application/json
-     header, so the preload would not match and the browser would be liable to
-     download the largest file on the site twice. main.js starts the map early
-     instead. -->
+<!-- All three are fetched with a plain fetch(), which is what makes them
+     reusable from the preload cache. lads.geojson is the largest file on the
+     site and the one the map cannot draw without, so it goes first. It could
+     not be preloaded under MapLibre, which fetched it itself with an
+     Accept: application/json header that the preload would not match, risking
+     a second download; js/map-canvas.js fetches it plainly, so it can be. -->
+<link rel="preload" href="data/lads.geojson" as="fetch" crossorigin>
 <link rel="preload" href="data/meta.json" as="fetch" crossorigin>
 <link rel="preload" href="data/prices-0.bin" as="fetch" crossorigin>
 
 <!-- main.js is found by the parser, but its imports are not discovered until
      it has been fetched and parsed - a round trip these save. -->
 <link rel="modulepreload" href="js/data.js">
-<link rel="modulepreload" href="js/map.js">
+<link rel="modulepreload" href="js/map-canvas.js">
 <link rel="modulepreload" href="js/chart.js">
 
-<link rel="stylesheet" href="vendor/maplibre-gl.css">
 <link rel="stylesheet" href="vendor/uPlot.min.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -176,10 +176,9 @@
   </div>
 </footer>
 
-<!-- defer so 800KB of MapLibre stops holding up the parser here; deferred
-     classic scripts and module scripts both run after parsing, in document
-     order, so maplibregl and uPlot are still defined before main.js runs. -->
-<script src="vendor/maplibre-gl.js" defer></script>
+<!-- deferred classic scripts and module scripts both run after parsing, in
+     document order, so uPlot is still defined before main.js runs. The map
+     needs no library at all - see js/map-canvas.js. -->
 <script src="vendor/uPlot.iife.min.js" defer></script>
 <script type="module" src="js/main.js"></script>
 
