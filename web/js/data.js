@@ -112,6 +112,17 @@ export function growthByArea(type, start, end, real) {
 	return values;
 }
 
+/** Absolute price for every mappable area in one month — the array behind the
+ *  average-price choropleth. Stops at geoAreas for the same reason growthByArea
+ *  does: the national and regional series that follow it have no boundary. */
+export function priceByArea(type, month, real) {
+	const values = new Float64Array(meta.geoAreas);
+	for (let area = 0; area < meta.geoAreas; area++) {
+		values[area] = price(type, area, month, real);
+	}
+	return values;
+}
+
 /** First and last months for which an area has an observation, or null if it
  *  has none at all. Scotland and Northern Ireland start well after England and
  *  Wales, so this is what explains an empty reading rather than a broken one. */

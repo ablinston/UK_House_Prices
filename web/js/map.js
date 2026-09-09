@@ -19,6 +19,13 @@
 const NO_DATA = -999;
 const UK_BOUNDS = [[-8.8, 49.8], [2.1, 61.1]];
 
+/* The average-price map reuses the same paint expression as the change map by
+ * normalising into [0, 1] instead of [-1, 1], so it runs mid -> positive: one
+ * sequential ramp, no second set of colours. It starts a little way along that
+ * ramp rather than at pure mid, because at mid the cheapest areas are nearly
+ * indistinguishable from the flat no-data fill. */
+const SEQ_FLOOR = 0.15;
+
 /* Place labels are ranked 0 (biggest cities) to 4 (towns) by src/07. Revealing
  * a rank per zoom level keeps the national view readable: at the opening zoom
  * only the couple of dozen largest cities are eligible, and MapLibre's own
@@ -170,6 +177,28 @@ export function colourBound(values) {
 	return Math.max(magnitudes[Math.min(9, magnitudes.length - 1)], 0.1);
 }
 
+/** Low and high ends of the average-price ramp, trimming the nine most extreme
+ *  areas at each end for the same reason colourBound does. Prices are far more
+ *  skewed than changes are: Kensington and Chelsea alone sits high enough above
+ *  the rest of the country to flatten every other area to the same pale tint. */
+export function priceBounds(values) {
+	const finite = [];
+	for (const value of values) {
+		if (Number.isFinite(value)) finite.push(value);
+	}
+	if (finite.length === 0) return null;
+
+	finite.sort((a, b) => a - b);
+	// Nine each end at the 360 areas the data actually has, but scaled down for
+	// a short list: trimming nine from each end of twenty would leave the ramp
+	// spanning the middle two areas alone.
+	const trim = Math.min(9, Math.floor(finite.length / 20));
+	const lo = finite[trim];
+	const hi = finite[finite.length - 1 - trim];
+
+	return hi > lo ? { lo, hi } : { lo, hi: lo + 1 };
+}
+
 export function createMap(container, { onSelect, describe, onContextLost }) {
 	const map = new maplibregl.Map({
 		container,
@@ -205,7 +234,7 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 	map.getContainer().appendChild(tooltip);
 
 	let ready = false;
-	let pendingValues = null;
+	let pending = null;          // { values, mode } held until the source loads
 	let hovered = null;
 	let selected = null;
 	const readyCallbacks = [];
@@ -217,18 +246,37 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 		map.setFeatureState({ source: 'lads', id: selected }, { selected: true });
 	}
 
-	function paint(values) {
-		const bound = colourBound(values);
+	/* Returns the domain the values were scaled against, which is what the
+	 * legend is labelled from: symmetric about zero for the change map, and the
+	 * trimmed price range for the average-price map. */
+	function paint(values, mode) {
+		const sequential = mode === 'price';
+		const domain = sequential
+			? priceBounds(values) || { lo: 0, hi: 1 }
+			: (() => {
+				const bound = colourBound(values);
+				return { lo: -bound, hi: bound };
+			})();
+
+		const span = domain.hi - domain.lo;
 
 		for (let area = 0; area < values.length; area++) {
 			const value = values[area];
-			const normalised = Number.isFinite(value)
-				? Math.max(-1, Math.min(1, value / bound))
-				: NO_DATA;
+			let normalised = NO_DATA;
+
+			if (Number.isFinite(value)) {
+				if (sequential) {
+					const t = Math.max(0, Math.min(1, (value - domain.lo) / span));
+					normalised = SEQ_FLOOR + (1 - SEQ_FLOOR) * t;
+				} else {
+					normalised = Math.max(-1, Math.min(1, value / domain.hi));
+				}
+			}
+
 			map.setFeatureState({ source: 'lads', id: area }, { n: normalised });
 		}
 
-		return bound;
+		return { mode, lo: domain.lo, hi: domain.hi };
 	}
 
 	function setHover(area) {
@@ -251,13 +299,13 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 
 		applySelected();
 
-		let bound = null;
-		if (pendingValues) {
-			bound = paint(pendingValues);
-			pendingValues = null;
+		let domain = null;
+		if (pending) {
+			domain = paint(pending.values, pending.mode);
+			pending = null;
 		}
 
-		while (readyCallbacks.length) readyCallbacks.shift()(bound);
+		while (readyCallbacks.length) readyCallbacks.shift()(domain);
 	}
 
 	function checkReady() {
@@ -322,13 +370,15 @@ export function createMap(container, { onSelect, describe, onContextLost }) {
 			else readyCallbacks.push(callback);
 		},
 
-		/** Recolour every area. Returns the colour bound, or null if not ready. */
-		setValues(values) {
+		/** Recolour every area. `mode` is 'change' for the diverging ramp about
+		 *  zero, or 'price' for the sequential one. Returns the domain the
+		 *  values were scaled against, or null if the geometry is not in yet. */
+		setValues(values, mode = 'change') {
 			if (!ready) {
-				pendingValues = values;
+				pending = { values, mode };
 				return null;
 			}
-			return paint(values);
+			return paint(values, mode);
 		},
 
 		setSelected(area) {

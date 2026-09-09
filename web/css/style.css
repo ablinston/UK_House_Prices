@@ -264,8 +264,10 @@ body {
 	display: grid;
 	gap: 12px;
 	grid-template-columns: minmax(0, 1fr);
-	margin-bottom: 0;
+	margin-bottom: 16px;
 }
+
+.field-row:last-child { margin-bottom: 0; }
 
 /* Keyed to the panel, not the viewport: the controls column stays narrow on
    wide screens, so a viewport query would wrongly place these side by side */
@@ -275,7 +277,10 @@ body {
 
 .field-row .field { margin-bottom: 0; }
 
-label {
+/* .field-label is the same thing for a group of controls rather than one, where
+   a <label> would have no single control to point at. */
+label,
+.field-label {
 	display: block;
 	font-size: 12px;
 	font-weight: 500;
@@ -294,6 +299,80 @@ label {
 }
 
 .range-arrow { color: var(--text-subtle); font-weight: 400; margin: 0 2px; }
+
+.field-note {
+	margin: 8px 0 0;
+	font-size: 11.5px;
+	line-height: 1.5;
+	color: var(--text-subtle);
+}
+
+/* ---------- Segmented toggle ---------- */
+
+.segmented {
+	position: relative;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	padding: 3px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-md);
+	background: var(--surface-sunken);
+}
+
+/* Taken out of flow rather than hidden: the radios are still the control the
+   keyboard and the accessibility tree see, they just have no box of their own
+   in the two-column grid. */
+.segmented input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.segmented-option {
+	position: relative;
+	z-index: 1;
+	margin-bottom: 0;
+	padding: 8px 6px;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 550;
+	color: var(--text-muted);
+	cursor: pointer;
+	border-radius: var(--r-sm);
+	transition: color 0.15s ease;
+}
+
+.segmented input:checked + .segmented-option { color: var(--text); }
+
+.segmented input:focus-visible + .segmented-option {
+	box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Driven off the checked radio rather than a class toggled from JS, so the
+   thumb follows arrow-key selection as well as a click.
+   The thumb is one half of the track less the left padding, which is exactly
+   how far it has to travel — so translateX(100%) lands it on the right edge. */
+.segmented-thumb {
+	position: absolute;
+	z-index: 0;
+	top: 3px;
+	left: 3px;
+	width: calc(50% - 3px);
+	height: calc(100% - 6px);
+	border-radius: var(--r-sm);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+	transition: transform 0.18s ease;
+}
+
+.segmented input:nth-of-type(2):checked ~ .segmented-thumb {
+	transform: translateX(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.segmented-thumb { transition: none; }
+}
 
 /* ---------- Select ---------- */
 
@@ -498,6 +577,14 @@ select:focus-visible {
 	border-radius: 999px;
 	background: linear-gradient(to right, var(--ramp-neg), var(--ramp-mid), var(--ramp-pos));
 	border: 1px solid var(--border);
+}
+
+/* Matches the map's own sequential ramp, which starts a little way along the
+   mid -> positive run rather than at pure mid: see SEQ_FLOOR in js/map.js. */
+.legend-ramp.is-sequential {
+	background: linear-gradient(to right,
+		color-mix(in srgb, var(--ramp-pos) 15%, var(--ramp-mid)),
+		var(--ramp-pos));
 }
 
 .legend-label { font-weight: 500; color: var(--text); }

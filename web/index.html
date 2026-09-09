@@ -91,6 +91,21 @@
         </div>
       </div>
     </div>
+
+    <div class="field">
+      <span class="field-label" id="map-shows-label">Map shows</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="map-shows-label">
+        <input type="radio" name="map-mode" id="map-mode-change" value="change" checked>
+        <label class="segmented-option" for="map-mode-change">Price change</label>
+        <input type="radio" name="map-mode" id="map-mode-price" value="price">
+        <label class="segmented-option" for="map-mode-price">Average price</label>
+        <span class="segmented-thumb" aria-hidden="true"></span>
+      </div>
+      <p class="field-note">
+        Average price is the level in the end month; price change is the whole
+        range. Both follow the housing type and price basis above.
+      </p>
+    </div>
   </section>
 
   <section class="panel map-panel" aria-labelledby="map-heading">

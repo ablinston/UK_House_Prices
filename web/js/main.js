@@ -4,7 +4,7 @@
  * All computation happens here in the browser — the server only ever serves
  * static files. */
 
-import { loadMeta, loadType, isLoaded, price, growth, growthByArea, annualise, coverage } from './data.js';
+import { loadMeta, loadType, isLoaded, price, growth, growthByArea, priceByArea, annualise, coverage } from './data.js';
 import { createMap } from './map.js';
 import { createChart } from './chart.js';
 
@@ -21,6 +21,8 @@ const el = {
 	houseType: document.getElementById('house-type'),
 	priceBasis: document.getElementById('price-basis'),
 	areaSelect: document.getElementById('area-select'),
+	mapModes: document.querySelectorAll('input[name="map-mode"]'),
+	mapEl: document.getElementById('map'),
 	headlineValue: document.getElementById('headline-value'),
 	headlineLabel: document.getElementById('headline-label'),
 	stats: document.querySelector('#stats tbody'),
@@ -28,13 +30,17 @@ const el = {
 	chartTitle: document.getElementById('chart-title'),
 	mapStatus: document.getElementById('map-status'),
 	legend: document.getElementById('legend'),
+	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
 	topbarMeta: document.getElementById('topbar-meta'),
 	basisNote: document.getElementById('basis-note'),
 };
 
-const state = { start: 0, end: 0, type: 0, real: true, area: 0 };
+// mapMode colours the map by change over the range ('change') or by the average
+// price in the end month ('price'). It moves nothing else: the headline, stats
+// and chart always describe the selected area over the whole range.
+const state = { start: 0, end: 0, type: 0, real: true, area: 0, mapMode: 'change' };
 
 let meta = null;
 let mapView = null;
@@ -44,6 +50,17 @@ let frame = null;
 function formatPercent(value, digits = 1) {
 	if (!Number.isFinite(value)) return '—';
 	return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
+}
+
+/* Compact in the legend, where there is room for about six characters either
+ * side of the ramp, and in full in the tooltip, where the exact figure is the
+ * whole point of hovering. */
+function formatMoney(value, compact = false) {
+	if (!Number.isFinite(value)) return '—';
+	if (!compact) return `£${Math.round(value).toLocaleString('en-GB')}`;
+	if (value >= 1e6) return `£${(value / 1e6).toFixed(1)}m`;
+	if (value >= 1e3) return `£${Math.round(value / 1e3)}k`;
+	return `£${Math.round(value)}`;
 }
 
 function typeLabel(type) {
@@ -73,14 +90,24 @@ function renderRange() {
 }
 
 function renderMap() {
-	const values = growthByArea(state.type, state.start, state.end, state.real);
-	const bound = mapView.setValues(values);
+	const showPrice = state.mapMode === 'price';
+	const values = showPrice
+		? priceByArea(state.type, state.end, state.real)
+		: growthByArea(state.type, state.start, state.end, state.real);
 
-	if (bound !== null) {
-		el.legend.hidden = false;
-		el.legendMin.textContent = formatPercent(-bound, 0);
-		el.legendMax.textContent = formatPercent(bound, 0);
-	}
+	const domain = mapView.setValues(values, state.mapMode);
+	if (domain === null) return;
+
+	// Both ends of both ramps are trimmed rather than true extremes, so the
+	// labels read as the scale they are, not as the range of the data.
+	el.legend.hidden = false;
+	el.legendRamp.classList.toggle('is-sequential', showPrice);
+	el.legendMin.textContent = showPrice
+		? formatMoney(domain.lo, true)
+		: formatPercent(domain.lo, 0);
+	el.legendMax.textContent = showPrice
+		? formatMoney(domain.hi, true)
+		: formatPercent(domain.hi, 0);
 }
 
 function renderHeadline() {
@@ -189,8 +216,21 @@ function setArea(area) {
 
 function describeArea(area) {
 	if (!meta) return '';
-	const value = growth(state.type, area, state.start, state.end, state.real);
-	return `<b>${meta.areas[area].n}</b><br><span class="tip-value">${formatPercent(value)}</span>`;
+
+	const reading = state.mapMode === 'price'
+		? formatMoney(price(state.type, area, state.end, state.real))
+		: formatPercent(growth(state.type, area, state.start, state.end, state.real));
+
+	return `<b>${meta.areas[area].n}</b><br><span class="tip-value">${reading}</span>`;
+}
+
+/* The map is the one thing on the page whose meaning changes underneath the
+ * reader, so its accessible name is kept in step with the toggle rather than
+ * left at whatever it said when the page loaded. */
+function applyMapMode() {
+	el.mapEl.setAttribute('aria-label', state.mapMode === 'price'
+		? 'Map of UK local authorities coloured by average house price'
+		: 'Map of UK local authorities coloured by house price change');
 }
 
 function wireControls() {
@@ -220,6 +260,17 @@ function wireControls() {
 	el.areaSelect.addEventListener('change', () => {
 		setArea(Number(el.areaSelect.value));
 	});
+
+	// Only the map changes, so this repaints it directly instead of going
+	// through render() and rebuilding the chart and the table for nothing.
+	for (const radio of el.mapModes) {
+		radio.addEventListener('change', () => {
+			if (!radio.checked) return;
+			state.mapMode = radio.value;
+			applyMapMode();
+			renderMap();
+		});
+	}
 }
 
 /* ---------- startup ---------- */
@@ -271,6 +322,13 @@ function populateControls() {
 	const defaultArea = meta.areas.findIndex((area) => area.c === DEFAULT_AREA_CODE);
 	state.area = defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
+
+	// Browsers restore checked radios across a reload, so the toggle is read
+	// rather than assumed — otherwise the map and the control disagree after
+	// a refresh that puts the toggle back on "Average price".
+	const checked = Array.from(el.mapModes).find((radio) => radio.checked);
+	if (checked) state.mapMode = checked.value;
+	applyMapMode();
 
 	// Two genuinely different dates, so both are stated in full rather than
 	// abbreviated to an ambiguous "updated": how far the price data runs, and
