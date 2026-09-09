@@ -11,6 +11,7 @@ import { createChart } from './chart.js';
 const DEFAULT_AREA_CODE = 'K02000001';   // United Kingdom
 const DEFAULT_START = '2005-01';
 const THUMB = 16;                        // matches the slider thumb in style.css
+const CTA_SEEN_KEY = 'ukhp.map-cta-seen';
 
 const el = {
 	startSlider: document.getElementById('start-month'),
@@ -23,13 +24,18 @@ const el = {
 	areaSelect: document.getElementById('area-select'),
 	mapModes: document.querySelectorAll('input[name="map-mode"]'),
 	mapEl: document.getElementById('map'),
+	headline: document.getElementById('headline'),
 	headlineValue: document.getElementById('headline-value'),
 	headlineLabel: document.getElementById('headline-label'),
 	stats: document.querySelector('#stats tbody'),
 	chart: document.getElementById('chart'),
 	chartTitle: document.getElementById('chart-title'),
 	mapStatus: document.getElementById('map-status'),
+	mapCta: document.getElementById('map-cta'),
+	headlineArea: document.getElementById('headline-area'),
+	areaPanel: document.getElementById('area-panel'),
 	legend: document.getElementById('legend'),
+	legendTitle: document.getElementById('legend-title'),
 	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
@@ -52,6 +58,20 @@ function formatPercent(value, digits = 1) {
 	return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
 }
 
+function typeLabel(type) {
+	return type === 'SemiDetached' ? 'Semi-detached' : type;
+}
+
+function toneOf(value) {
+	if (!Number.isFinite(value)) return 'none';
+	return value >= 0 ? 'up' : 'down';
+}
+
+function basisLabel() {
+	const measure = state.mapMode === 'price' ? 'average price' : 'change';
+	return `${state.real ? 'Real' : 'Nominal'} ${measure} · ${typeLabel(meta.types[state.type])}`;
+}
+
 /* Compact in the legend, where there is room for about six characters either
  * side of the ramp, and in full in the tooltip, where the exact figure is the
  * whole point of hovering. */
@@ -63,13 +83,25 @@ function formatMoney(value, compact = false) {
 	return `£${Math.round(value)}`;
 }
 
-function typeLabel(type) {
-	return type === 'SemiDetached' ? 'Semi-detached' : type;
+/* Storage is unavailable in some privacy modes and throws rather than returning
+ * nothing, and a prompt shown twice is a far smaller problem than a page that
+ * fails to start. */
+function ctaAlreadySeen() {
+	try {
+		return localStorage.getItem(CTA_SEEN_KEY) === '1';
+	} catch (error) {
+		return false;
+	}
 }
 
-function toneOf(value) {
-	if (!Number.isFinite(value)) return 'none';
-	return value >= 0 ? 'up' : 'down';
+function retireCta() {
+	if (el.mapCta.hidden) return;
+	el.mapCta.hidden = true;
+	try {
+		localStorage.setItem(CTA_SEEN_KEY, '1');
+	} catch (error) {
+		/* it simply reappears next visit */
+	}
 }
 
 /* ---------- rendering ---------- */
@@ -96,18 +128,23 @@ function renderMap() {
 		: growthByArea(state.type, state.start, state.end, state.real);
 
 	const domain = mapView.setValues(values, state.mapMode);
-	if (domain === null) return;
 
-	// Both ends of both ramps are trimmed rather than true extremes, so the
-	// labels read as the scale they are, not as the range of the data.
-	el.legend.hidden = false;
-	el.legendRamp.classList.toggle('is-sequential', showPrice);
-	el.legendMin.textContent = showPrice
-		? formatMoney(domain.lo, true)
-		: formatPercent(domain.lo, 0);
-	el.legendMax.textContent = showPrice
-		? formatMoney(domain.hi, true)
-		: formatPercent(domain.hi, 0);
+	// Named on the legend as well as in the panel, so the map still says what
+	// it is measuring when it is the only thing on screen
+	el.legendTitle.textContent = basisLabel();
+
+	if (domain !== null) {
+		// Both ends of both ramps are trimmed rather than true extremes, so the
+		// labels read as the scale they are, not as the range of the data.
+		el.legend.hidden = false;
+		el.legendRamp.classList.toggle('is-sequential', showPrice);
+		el.legendMin.textContent = showPrice
+			? formatMoney(domain.lo, true)
+			: formatPercent(domain.lo, 0);
+		el.legendMax.textContent = showPrice
+			? formatMoney(domain.hi, true)
+			: formatPercent(domain.hi, 0);
+	}
 }
 
 function renderHeadline() {
@@ -115,6 +152,7 @@ function renderHeadline() {
 	const total = loaded ? growth(state.type, state.area, state.start, state.end, state.real) : NaN;
 
 	el.headlineValue.className = `headline-value ${toneOf(total)}`;
+	el.headlineArea.textContent = meta.areas[state.area].n;
 
 	const basis = state.real ? 'Real' : 'Nominal';
 	const period = `${meta.monthLabels[state.start]} to ${meta.monthLabels[state.end]}`;
@@ -198,6 +236,19 @@ function renderAreaDetail() {
 	renderChart();
 }
 
+/* The background housing types resolve independently, so their redraws are
+ * coalesced the same way slider bursts are - two landing in one frame should
+ * cost one repaint of the chart, not two. */
+let detailFrame = null;
+
+function scheduleAreaDetail() {
+	if (detailFrame) return;
+	detailFrame = schedule(() => {
+		detailFrame = null;
+		renderAreaDetail();
+	});
+}
+
 /* ---------- interaction ---------- */
 
 // The map is built before meta.json is awaited, so both of these — the only
@@ -205,13 +256,32 @@ function renderAreaDetail() {
 // is any metadata to read. In practice meta.json is long since in by the time
 // the boundaries are loaded and hoverable, but neither should depend on that.
 
-function setArea(area) {
+function setArea(area, fromMap = false) {
 	if (!meta) return;
 	state.area = area;
 	el.areaSelect.value = String(area);
 	// National and regional series have no polygon to outline
 	mapView.setSelected(area < meta.geoAreas ? area : null);
 	renderAreaDetail();
+
+	if (!fromMap) return;
+
+	retireCta();
+
+	// On a phone the reading is below the map, so without this the tap can
+	// look like it did nothing. The headline is the target rather than the
+	// whole panel: the panel is taller than a phone screen, so scrolling that
+	// into view would align its top and carry the map - and the area just
+	// selected - clean off the screen. 'nearest' then does nothing at all when
+	// the reading is already visible, which is the usual case on a wide one.
+	el.headline.scrollIntoView({
+		behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+		block: 'nearest',
+	});
+
+	el.areaPanel.classList.remove('is-updated');
+	void el.areaPanel.offsetWidth;   // restart the animation on a repeat click
+	el.areaPanel.classList.add('is-updated');
 }
 
 function describeArea(area) {
@@ -281,6 +351,22 @@ function monthKey(index) {
 	return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+/* "Click any area" is wrong advice on a phone. The media query gets it right
+ * up front for phones and tablets; the touch listener then catches anything it
+ * misjudged - a laptop with a touchscreen reports a fine pointer, and its owner
+ * should still be told to tap once they have actually touched the screen. */
+function useTapWording() {
+	for (const node of document.querySelectorAll('.pointer-verb')) node.textContent = 'Tap';
+}
+
+function applyPointerVerb() {
+	if (window.matchMedia('(pointer: coarse)').matches) {
+		useTapWording();
+		return;
+	}
+	window.addEventListener('touchstart', useTapWording, { once: true, passive: true });
+}
+
 function populateControls() {
 	el.houseType.innerHTML = meta.types
 		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
@@ -347,7 +433,7 @@ async function start() {
 	// rather than after the await means they are in flight alongside
 	// meta.json instead of queueing behind its round trip.
 	mapView = createMap('map', {
-		onSelect: setArea,
+		onSelect: (area) => setArea(area, true),
 		describe: describeArea,
 		onContextLost: () => {
 			el.mapStatus.hidden = false;
@@ -362,6 +448,8 @@ async function start() {
 	// rejection in the window before that await is reached.
 	pricesReady.catch(() => {});
 
+	applyPointerVerb();
+
 	meta = await loadMeta();
 	populateControls();
 
@@ -372,6 +460,8 @@ async function start() {
 	mapView.whenReady(() => {
 		el.mapStatus.hidden = true;
 		mapView.setSelected(state.area < meta.geoAreas ? state.area : null);
+		// Held back until there is a map to point at
+		if (!ctaAlreadySeen()) el.mapCta.hidden = false;
 		render();
 	});
 
@@ -379,11 +469,20 @@ async function start() {
 	render();
 
 	// The remaining types stream in behind the first paint; each one fills in
-	// another line on the chart and another row of the stats table.
-	meta.types.forEach((_, i) => {
-		if (i === state.type) return;
-		loadType(i).then(renderAreaDetail);
-	});
+	// another line on the chart and another row of the stats table. Held back
+	// to an idle callback because they are 1.1 MB between them and nothing on
+	// screen is waiting on them: letting the main thread and the connection go
+	// quiet first is what lets the page settle, and the page settling is what
+	// ends the window Total Blocking Time is measured over.
+	const loadRemaining = () => {
+		meta.types.forEach((_, i) => {
+			if (i === state.type) return;
+			loadType(i).then(scheduleAreaDetail).catch((error) => console.error(error));
+		});
+	};
+
+	if ('requestIdleCallback' in window) requestIdleCallback(loadRemaining, { timeout: 2500 });
+	else setTimeout(loadRemaining, 500);
 }
 
 start().catch((error) => {

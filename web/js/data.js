@@ -8,6 +8,13 @@
 
 const MISSING = 0;
 
+/* Built once and reused. toLocaleDateString() with an options object builds a
+ * formatter per call, and this runs 378 times - once per month on the axis -
+ * during startup. */
+const MONTH_LABEL = new Intl.DateTimeFormat('en-GB', {
+	month: 'short', year: 'numeric', timeZone: 'UTC',
+});
+
 let meta = null;
 const matrices = [];   // type index -> Uint16Array
 const inflight = [];   // type index -> Promise
@@ -21,9 +28,7 @@ function buildMonths(start, count) {
 	for (let i = 0; i < count; i++) {
 		const d = new Date(Date.UTC(year, month - 1 + i, 1));
 		times[i] = d.getTime() / 1000;                       // uPlot wants seconds
-		labels[i] = d.toLocaleDateString('en-GB', {
-			month: 'short', year: 'numeric', timeZone: 'UTC',
-		});
+		labels[i] = MONTH_LABEL.format(d);
 	}
 
 	return { times, labels };
