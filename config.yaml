@@ -4,3 +4,4 @@ UK_geojson_filename: LAD_MAY_2025_UK_BUC_-659679952066429304.geojson
 UK_geojson_highres_filename: LAD_MAY_2025_UK_BGC_V2_-5651545108417053320.geojson
 UK_cpi_source: https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/consumerpriceindices/current/
 UK_cpi_filename: mm23.csv
+UK_places_source: https://download.geonames.org/export/dump/GB.zip
