@@ -1,0 +1,11 @@
+{
+  // Pure static-asset Worker - no script, no build step. Cloudflare serves
+  // everything in web/ directly. Name must match the Worker already created
+  // in the dashboard (uk-house-prices.andyblinston2.workers.dev), or a
+  // git-connected build will fail rather than update it.
+  "name": "uk-house-prices",
+  "compatibility_date": "2026-09-02",
+  "assets": {
+    "directory": "./web"
+  }
+}

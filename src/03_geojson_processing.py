@@ -1,7 +1,15 @@
 exec(open('global.py').read())
 
+# geopandas (+ pyproj, shapely, Fiona) is deliberately NOT listed in requirements.txt:
+# Fiona has no Linux ARM64 wheel on PyPI at any version, which breaks this
+# file's install on the Pi. It's only needed by
+# src/03_geojson_processing.py, which is Windows-only - install it
+# separately there (`pip install geopandas pyproj shapely Fiona`)
+
 ####################
 # Process the geojson data
+
+print('Step 03: Reproject LAD boundaries')
 
 # Read it in with geopandas
 gb_geojson = gp.read_file('raw_data/' + config['UK_geojson_filename'])
@@ -9,6 +17,7 @@ gb_geojson_highres = gp.read_file('raw_data/' + config['UK_geojson_highres_filen
 
 # Auto-detect the LAD code column (e.g. LAD23CD, LAD24CD, LAD25CD)
 lad_cd_col = [c for c in gb_geojson.columns if c.startswith('LAD') and c.endswith('CD')][0]
+print(f'  {len(gb_geojson)} LADs, using code column {lad_cd_col}')
 
 for geojson in [gb_geojson, gb_geojson_highres]:
 
@@ -29,14 +38,17 @@ for geojson in [gb_geojson, gb_geojson_highres]:
     
     # Save the output for the model
     if geojson.equals(gb_geojson):
-        with open('data/uk_lads.geojson', 'w') as f:
-            f.write(j.dumps(gb_geojson_final))
+        out_path = 'data/uk_lads.geojson'
     else:
-        with open('data/uk_lads_highres.geojson', 'w') as f:
-            f.write(j.dumps(gb_geojson_final))
-            
+        out_path = 'data/uk_lads_highres.geojson'
+
+    with open(out_path, 'w') as f:
+        f.write(j.dumps(gb_geojson_final))
+    print(f'  wrote {out_path} ({len(gb_geojson_final["features"])} features)')
+
 # Save a list of LADs needed for the map
 gb_geojson_reprojected[['ID']].to_parquet('data/lad_list.parquet')
+print(f'  wrote data/lad_list.parquet ({len(gb_geojson_reprojected)} LADs)')
 
 
 
