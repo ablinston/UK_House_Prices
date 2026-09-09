@@ -836,7 +836,13 @@ select:focus-visible {
 	color: var(--text-muted);
 }
 
-.stats-wrap { overflow-x: auto; margin-bottom: 18px; }
+/* The rule below the chart, which the table now sits under. The separator
+   travels with whichever block is second, so moving one means moving it. */
+.stats-wrap {
+	overflow-x: auto;
+	border-top: 1px solid var(--border);
+	padding-top: 14px;
+}
 
 .stats {
 	width: 100%;
@@ -869,10 +875,7 @@ select:focus-visible {
 .stats .down { color: var(--neg); font-weight: 550; }
 .stats .none { color: var(--text-subtle); }
 
-.chart-block {
-	border-top: 1px solid var(--border);
-	padding-top: 14px;
-}
+.chart-block { margin-bottom: 18px; }
 
 .chart-title {
 	margin: 0 0 10px;
