@@ -240,12 +240,46 @@ body {
 	color: var(--text-subtle);
 }
 
-.intro {
+/* Numbered rather than prose: the one thing a first-time visitor has to know
+   is that the map is clickable, and a paragraph is easy to skip past. */
+.steps {
 	margin: 10px 0 18px;
+	padding: 0;
+	list-style: none;
+	counter-reset: step;
 	color: var(--text-muted);
 	font-size: 13px;
-	line-height: 1.6;
+	line-height: 1.5;
 }
+
+.steps li {
+	counter-increment: step;
+	position: relative;
+	padding-left: 29px;
+	margin-bottom: 8px;
+}
+
+.steps li:last-child { margin-bottom: 0; }
+
+.steps li::before {
+	content: counter(step);
+	position: absolute;
+	left: 0;
+	top: 0.5px;
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--surface-sunken);
+	border: 1px solid var(--border);
+	color: var(--text-subtle);
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.steps b { color: var(--text); font-weight: 550; }
 
 /* ---------- Fields ---------- */
 
@@ -264,8 +298,10 @@ body {
 	display: grid;
 	gap: 12px;
 	grid-template-columns: minmax(0, 1fr);
-	margin-bottom: 0;
+	margin-bottom: 16px;
 }
+
+.field-row:last-child { margin-bottom: 0; }
 
 /* Keyed to the panel, not the viewport: the controls column stays narrow on
    wide screens, so a viewport query would wrongly place these side by side */
@@ -275,7 +311,10 @@ body {
 
 .field-row .field { margin-bottom: 0; }
 
-label {
+/* .field-label is the same thing for a group of controls rather than one, where
+   a <label> would have no single control to point at. */
+label,
+.field-label {
 	display: block;
 	font-size: 12px;
 	font-weight: 500;
@@ -294,6 +333,80 @@ label {
 }
 
 .range-arrow { color: var(--text-subtle); font-weight: 400; margin: 0 2px; }
+
+.field-note {
+	margin: 8px 0 0;
+	font-size: 11.5px;
+	line-height: 1.5;
+	color: var(--text-subtle);
+}
+
+/* ---------- Segmented toggle ---------- */
+
+.segmented {
+	position: relative;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	padding: 3px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-md);
+	background: var(--surface-sunken);
+}
+
+/* Taken out of flow rather than hidden: the radios are still the control the
+   keyboard and the accessibility tree see, they just have no box of their own
+   in the two-column grid. */
+.segmented input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.segmented-option {
+	position: relative;
+	z-index: 1;
+	margin-bottom: 0;
+	padding: 8px 6px;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 550;
+	color: var(--text-muted);
+	cursor: pointer;
+	border-radius: var(--r-sm);
+	transition: color 0.15s ease;
+}
+
+.segmented input:checked + .segmented-option { color: var(--text); }
+
+.segmented input:focus-visible + .segmented-option {
+	box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Driven off the checked radio rather than a class toggled from JS, so the
+   thumb follows arrow-key selection as well as a click.
+   The thumb is one half of the track less the left padding, which is exactly
+   how far it has to travel — so translateX(100%) lands it on the right edge. */
+.segmented-thumb {
+	position: absolute;
+	z-index: 0;
+	top: 3px;
+	left: 3px;
+	width: calc(50% - 3px);
+	height: calc(100% - 6px);
+	border-radius: var(--r-sm);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+	transition: transform 0.18s ease;
+}
+
+.segmented input:nth-of-type(2):checked ~ .segmented-thumb {
+	transform: translateX(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.segmented-thumb { transition: none; }
+}
 
 /* ---------- Select ---------- */
 
@@ -413,6 +526,7 @@ select:focus-visible {
 .map-panel { position: relative; padding: 0; overflow: hidden; }
 
 #map {
+	position: relative;   /* the tooltip, zoom controls and gesture hint anchor here */
 	width: 100%;
 	height: clamp(400px, 62vh, 860px);
 	background: var(--map-water);
@@ -453,22 +567,117 @@ select:focus-visible {
 	.spinner { animation-duration: 2s; }
 }
 
-/* MapLibre's own controls, restyled to match */
-.maplibregl-ctrl-group {
-	background: var(--surface) !important;
-	border: 1px solid var(--border) !important;
-	border-radius: var(--r-md) !important;
-	box-shadow: var(--shadow-sm) !important;
+/* The canvas fills the panel; js/map-canvas.js sizes its backing store to the
+   device pixel ratio, so only the CSS box is set here. */
+.map-canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	cursor: grab;
+	touch-action: pan-y;   /* one finger scrolls the page, two move the map */
+}
+
+.map-canvas:active { cursor: grabbing; }
+
+#map:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: -2px; }
+
+/* The same instruction as step 2, but on the map itself - the panel above it is
+   a scroll away on a phone, which is exactly where it is needed most. Retired
+   permanently once the visitor has selected an area. */
+.map-cta {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	z-index: 5;
+	transform: translateX(-50%);
+	margin: 0;
+	padding: 7px 14px;
+	max-width: calc(100% - 96px);
+	background: color-mix(in srgb, var(--surface) 92%, transparent);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	box-shadow: var(--shadow-md);
+	color: var(--text-muted);
+	font-size: 12.5px;
+	font-weight: 500;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;   /* never in the way of the thing it points at */
+	animation: cta-in 0.35s ease both;
+}
+
+.map-cta[hidden] { display: none; }
+
+@keyframes cta-in {
+	from { opacity: 0; transform: translate(-50%, -6px); }
+	to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.map-cta { animation: none; }
+}
+
+/* Zoom controls, in place of MapLibre's own */
+.map-ctrl {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 5;
+	display: flex;
+	flex-direction: column;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-sm);
 	overflow: hidden;
 }
 
-.maplibregl-ctrl-group button + button { border-top: 1px solid var(--border) !important; }
+.map-ctrl button {
+	width: 29px;
+	height: 29px;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+	transition: background 0.12s ease, color 0.12s ease;
+}
 
-/* MapLibre draws its +/- icons as dark SVGs, so invert them on a dark panel */
-.maplibregl-ctrl-group button span { filter: var(--ctrl-icon-filter, none); }
+.map-ctrl button + button { border-top: 1px solid var(--border); }
+.map-ctrl button:hover { background: var(--surface-sunken); color: var(--text); }
+.map-ctrl button:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: -2px; }
 
-@media (prefers-color-scheme: dark) {
-	:root { --ctrl-icon-filter: invert(1) brightness(1.6); }
+/* Shown when a plain scroll or a one-finger drag lands on the map, so the
+   gesture that was ignored is explained rather than just swallowed. */
+.map-gesture-hint {
+	position: absolute;
+	inset: 0;
+	z-index: 6;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+	background: color-mix(in srgb, var(--text) 55%, transparent);
+	color: var(--surface);
+	font-size: 14px;
+	font-weight: 500;
+	text-align: center;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.map-gesture-hint.is-visible { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+	.map-gesture-hint { transition: none; }
 }
 
 .legend {
@@ -490,6 +699,14 @@ select:focus-visible {
 	font-variant-numeric: tabular-nums;
 }
 
+/* Says what the ramp is measuring, so the map reads on its own */
+.legend-title {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text);
+	letter-spacing: -0.005em;
+}
+
 .legend-scale { display: flex; align-items: center; gap: 8px; }
 
 .legend-ramp {
@@ -498,6 +715,14 @@ select:focus-visible {
 	border-radius: 999px;
 	background: linear-gradient(to right, var(--ramp-neg), var(--ramp-mid), var(--ramp-pos));
 	border: 1px solid var(--border);
+}
+
+/* Matches the map's own sequential ramp, which starts a little way along the
+   mid -> positive run rather than at pure mid: see SEQ_FLOOR in js/map-canvas.js. */
+.legend-ramp.is-sequential {
+	background: linear-gradient(to right,
+		color-mix(in srgb, var(--ramp-pos) 15%, var(--ramp-mid)),
+		var(--ramp-pos));
 }
 
 .legend-label { font-weight: 500; color: var(--text); }
@@ -534,6 +759,21 @@ select:focus-visible {
 
 /* ---------- Area detail ---------- */
 
+/* Picking an area on the map changes a panel that, on a phone, is below the
+   fold. Without a signal the tap reads as having done nothing at all. */
+.area-panel.is-updated {
+	animation: panel-flash 0.9s ease-out;
+}
+
+@keyframes panel-flash {
+	0%   { border-color: var(--accent-bright); box-shadow: 0 0 0 3px var(--focus-ring); }
+	100% { border-color: var(--border); box-shadow: var(--shadow-sm); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.area-panel.is-updated { animation: none; }
+}
+
 .area-head {
 	display: flex;
 	align-items: center;
@@ -552,6 +792,23 @@ select:focus-visible {
 	background: var(--surface-sunken);
 	border: 1px solid var(--border);
 	margin-bottom: 16px;
+}
+
+/* scrollIntoView stops the moment the block is technically in view, which
+   leaves it flush against the edge of the screen. A margin buys it some air. */
+.headline { scroll-margin: 16px 0; }
+
+/* The number means nothing without the place it belongs to */
+.headline-area {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+	margin-bottom: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .headline-value {
@@ -579,7 +836,13 @@ select:focus-visible {
 	color: var(--text-muted);
 }
 
-.stats-wrap { overflow-x: auto; margin-bottom: 18px; }
+/* The rule below the chart, which the table now sits under. The separator
+   travels with whichever block is second, so moving one means moving it. */
+.stats-wrap {
+	overflow-x: auto;
+	border-top: 1px solid var(--border);
+	padding-top: 14px;
+}
 
 .stats {
 	width: 100%;
@@ -612,10 +875,7 @@ select:focus-visible {
 .stats .down { color: var(--neg); font-weight: 550; }
 .stats .none { color: var(--text-subtle); }
 
-.chart-block {
-	border-top: 1px solid var(--border);
-	padding-top: 14px;
-}
+.chart-block { margin-bottom: 18px; }
 
 .chart-title {
 	margin: 0 0 10px;
