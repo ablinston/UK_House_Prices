@@ -1,4 +1,3 @@
-import pytest
 import subprocess
 import sys
 
@@ -57,3 +56,6 @@ last_cpi_date = pd.read_parquet('data/uk_cpi.parquet').tail(1)['Date'].iloc[0]
 last_hpi_date = pd.read_parquet('data/uk_hpi_data.parquet').tail(1)['Date'].iloc[0]
 
 result = run_pipeline(last_cpi_date, last_hpi_date)
+
+# Exit and return a 1 if failed so that bash knows the repo should not be commited
+sys.exit(0 if result else 1)
