@@ -1,5 +1,3 @@
-import urllib.request
-
 exec(open('global.py').read())
 
 

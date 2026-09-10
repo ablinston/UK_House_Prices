@@ -1,8 +1,3 @@
-import csv
-import io
-import urllib.request
-import zipfile
-
 exec(open('global.py').read())
 
 ####################
