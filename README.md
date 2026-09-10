@@ -1,47 +1,41 @@
 # UK House Prices
 
 An interactive map of average house price changes across UK local authority
-districts, built from the Land Registry UK House Price Index and adjusted for
-inflation using the ONS Consumer Prices Index.
+districts, adjusted for inflation using CPI.
 
-The site lets you pick any date range, choose a housing type, switch between
-nominal and real (inflation-adjusted) prices, and click any local authority for
-its full price history and growth statistics.
+Started as a Python Shiny app but converted to a live web app at https://RealHousePrices.uk
+
+Raspberry Pi auto checks for data updates weekly and pushes PRs when newer data found.
+
+Unit tests all automated with Github actions.
+
 
 ## How it works
 
-The project is in two halves, and they are deliberately decoupled:
+Two parts, kept separate:
 
 | | |
 |---|---|
-| **Data pipeline** (Python) | Scrapes, cleans and processes the source data, then exports compact assets for the web app. Runs on your machine, monthly. |
-| **Website** (`web/`) | Plain HTML, CSS and JavaScript. No build step, no framework, no server-side code. |
+| **Data pipeline** (Python) | Scrapes and processes the source data, then exports compact assets for the site. Runs on the Pi, weekly. |
+| **Website** (`web/`) | The front end, in HTML, CSS and JavaScript. `web/` is the folder that gets deployed. |
 
-The website does all its computation in the browser. The entire price dataset —
-374 areas x 373 months x 5 housing types — is about 1.3 MB, so it is shipped to
-the client and every interaction (recolouring the map, redrawing the chart,
-recalculating growth) is local arithmetic. Nothing is computed per user on a
-server.
+The dataset covers 374 areas x 378 months x 5 housing types, encoded down to
+about 1.35 MB so the whole history is available to the interface at once.
 
-Those 374 areas are 360 local authorities, which appear on the map, plus 14
-national and regional series (the UK, the four countries, and the nine English
-regions). The aggregates have no boundary and are selectable from the dropdown
-only; the UK is the default, so the first thing a visitor sees is the national
-picture.
-
-That means the site is a folder of static files. It can be hosted for free with
-effectively unlimited concurrent users, because serving it costs no more than
-serving any other static page.
+The 374 areas are 360 local authorities, which appear on the map, plus 14
+national and regional series (the UK, the four countries, the nine English
+regions). The aggregates have no boundary, so they are selectable from the
+dropdown only. The UK is the default.
 
 ### Data encoding
 
 Prices are stored per housing type as a `uint16` matrix of `[area][month]`,
-holding an index relative to each area's first observation (x1000), with `0`
-marking a missing observation. The map only needs *ratios* between two dates, so
-the base price cancels out; absolute prices are recovered in the browser as
-`base[type][area] * index / scale`. This halves the payload compared with
-float32, and splitting the matrix per housing type lets the browser load the
-selected type first (~200 KB gzipped) and stream the rest in the background.
+holding an index relative to each area's first observation (x1000). `0` means
+no observation. The map only needs ratios between two dates, so the base price
+cancels out and absolute prices are recovered in the browser as
+`base[type][area] * index / scale`. That halves the payload against float32.
+One file per type lets the browser load the selected type first (276 KB) and
+stream the rest.
 
 ## Repository layout
 
@@ -50,124 +44,118 @@ config.yaml                 Source URLs and filenames for the raw data
 global.py                   Shared imports and config, exec'd by every script
 functions/                  Helper functions, auto-loaded by global.py
 src/
-  00_pipeline.py            Runs steps 01-06 in order
+  00_run_pipeline.py        Runs steps 01-07, then the tests
   01_scrape_hpi_data.py     Download Land Registry UK HPI
   02_scrape_cpi_data.py     Download ONS CPI
-  03_geojson_processing.py  Reproject LAD boundaries to WGS84
+  03_geojson_processing.py  Reproject LAD boundaries to WGS84 (Windows only)
   04_hpi_processing.py      Clean HPI into data/uk_hpi_data.parquet
   05_cpi_processing.py      Clean CPI into data/uk_cpi.parquet
   06_export_web_data.py     Export web/data/ assets for the site
+  07_export_places.py       Export place labels from the GeoNames gazetteer
+tests/                      Pytest checks on the exported data
 raw_data/                   Untouched downloads (DVC-tracked, gitignored)
 data/                       Processed parquet + geojson (DVC-tracked, gitignored)
 web/                        The website - this folder is what gets deployed
   index.html
   css/style.css
-  js/                       data.js, map.js, chart.js, main.js
-  vendor/                   MapLibre GL JS and uPlot, vendored (no CDN at runtime)
-  data/                     Generated by step 06 (gitignored)
+  js/                       data.js, map-canvas.js, chart.js, main.js
+  vendor/                   uPlot and the Inter font, vendored (no CDN at runtime)
+  data/                     Generated by steps 06 and 07, committed
 ```
 
 ## Updating the data
 
-The Land Registry publishes new HPI data monthly. To refresh everything on RaspberryPi, first do a docker build using the dockerfile.
-Then need to create the container for the automated data updates
+The Land Registry publishes new HPI data monthly. To refresh everything on
+RaspberryPi, first do a docker build using the dockerfile. Then need to create
+the container for the automated data updates
 
 ```
 docker create -it --name uk_house_prices -v "$(pwd)":/workspace uk_house_prices:v1 /bin/bash
 ```
-`-v` does the mount to access all the files in the repo, and `/bin/bash` and `-it` make it an interactive container that stays open after it's started.
+
+`-v` does the mount to access all the files in the repo, and `/bin/bash` and
+`-it` make it an interactive container that stays open after it's started.
 
 ```bash
-python src\00_pipeline.py
+python src/00_run_pipeline.py
 ```
 
-This downloads the latest source files, reprocesses them, and regenerates
-`web/data/`. To regenerate only the web assets from data you already have:
+This downloads the source files, reprocesses them, regenerates `web/data/` and
+runs the tests. It exits 0 only if there was new data and the tests passed, so
+a calling script can push on that.
+
+To regenerate only the web assets from data you already have:
 
 ```bash
-venv\Scripts\python.exe src\06_export_web_data.py
+python src/06_export_web_data.py
 ```
 
-Because `data/` and `raw_data/` are DVC-tracked and gitignored, a fresh clone has
-only `.dvc` pointer files. `dvc pull` fetches the real files from the configured
-remote, which needs credentials for that remote. Without them, run the full
-pipeline above instead — every input is a public download, so the whole dataset
-rebuilds from source with no access to the remote required.
+`data/` and `raw_data/` are DVC-tracked and gitignored, so a fresh clone has
+only `.dvc` pointers. `dvc pull` fetches the real files and needs credentials
+for the remote. Without them, run the full pipeline instead: every input is a
+public download.
 
 ## Previewing locally
 
 ```bash
-run_website_locally.bat
+run_website_locally.sh     # or run_website_locally.bat on Windows
 ```
 
-Then open <http://localhost:8000>. This runs `serve.py`, a thin wrapper around
-Python's built-in HTTP server that adds no-cache headers, so edits show up on a
-plain refresh instead of being served stale. It serves exactly the same static
-files that get deployed, so what you see locally is what production will do.
-There is nothing to compile or bundle; edit a file and refresh.
+Then open <http://localhost:8000>. This runs `serve.py`, which serves `web/`
+with no-cache headers and the right content types for the `.bin` and `.geojson`
+assets. Use it rather than `python -m http.server`, which serves stale ES
+modules and reports them as missing exports.
 
 ## Deploying
 
-The deployable artefact is the `web/` folder. Nothing else is needed at runtime —
-no Python, no Node, no container.
-
-Two options for Cloudflare Pages:
-
-1. **Dashboard upload** — create a Pages project and drag the `web/` folder in.
-   Requires no local tooling at all.
-2. **Wrangler CLI** — `npx wrangler pages deploy web` (needs Node installed).
-
-Note that `web/data/` is gitignored, so a git-connected Cloudflare build would
-not have the data files. Either deploy by direct upload as above, or run the
-pipeline in CI before deploying.
+`web/` is deployed as a Cloudflare Worker serving static assets, configured in
+`wrangler.jsonc` and git-connected to this repo, so pushing to the connected
+branch deploys. `web/data/` is committed rather than gitignored, which is what
+makes that work, so commit the regenerated assets after every refresh: pushing
+with stale `web/data/` deploys stale data.
 
 ## Dependencies
 
-`requirements.txt` covers the Python data pipeline and the Spyder development
-environment. The website itself has no Python dependency.
+`requirements.txt` covers the Python pipeline and the tests.
 
-The two JavaScript libraries are vendored into `web/vendor/` rather than loaded
-from a CDN, so the site is fully self-contained and has no third-party runtime
-requests:
+The JavaScript and the font are vendored into `web/vendor/` rather than loaded
+from a CDN, so the site is self-contained with no third-party runtime requests.
+Self-hosting the font also avoids the GDPR complications of a webfont CDN.
 
-- [MapLibre GL JS](https://maplibre.org/) (BSD-3-Clause) — the choropleth map
-- [uPlot](https://github.com/leeoniya/uPlot) (MIT) — the price history chart
-- [Inter](https://rsms.me/inter/) (SIL Open Font License) — the typeface, as a
+- [uPlot](https://github.com/leeoniya/uPlot) (MIT) - the price history chart
+- [Inter](https://rsms.me/inter/) (SIL Open Font License) - the typeface, a
   48 KB variable-weight subset
 
-Self-hosting the font also avoids the GDPR complications of loading webfonts
-from a third-party CDN.
+The choropleth is drawn by a purpose-built 2D canvas renderer in
+`web/js/map-canvas.js`, which projects each boundary once and redraws by
+transform, and replaced MapLibre and its 784 KB of JavaScript. Geography comes
+from the boundary polygons and a collision-managed place label layer rather
+than third-party tiles, which avoids their cost and usage restrictions. The
+MapLibre files are still in `web/vendor/` but are not loaded.
 
-The interface follows the visitor's own browser light/dark setting — there is no
-theme switcher in the page. All colours, including the map and the chart, come
-from CSS custom properties in `web/css/style.css`, so restyling happens in one
-place.
-
-There is no basemap. The map renders the local authority boundaries directly,
-which avoids both the cost and the usage restrictions of third-party tile
-services, and keeps the focus on the data.
+Light and dark themes follow the visitor's browser setting, with every colour,
+including the map ramp and the chart, defined as a CSS custom property in
+`web/css/style.css`.
 
 ## Data sources and licensing
 
-All source data is published under the
+Source data is published under the
 [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/),
 which permits commercial and non-commercial use with attribution.
 
-- **House prices** — [UK House Price Index](https://www.gov.uk/government/collections/uk-house-price-index-reports),
+- **House prices** - [UK House Price Index](https://www.gov.uk/government/collections/uk-house-price-index-reports),
   produced by HM Land Registry, the Office for National Statistics, Registers of
   Scotland, and Land & Property Services Northern Ireland.
-- **Inflation** — ONS [Consumer Price Inflation](https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/consumerpriceindices)
+- **Inflation** - ONS [Consumer Price Inflation](https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/consumerpriceindices)
   (`mm23`), CPI all items.
-- **Boundaries** — [ONS Open Geography Portal](https://geoportal.statistics.gov.uk/),
+- **Boundaries** - [ONS Open Geography Portal](https://geoportal.statistics.gov.uk/),
   Local Authority Districts (May 2025). `BUC` is the generalised, clipped
-  (low-resolution) version; `BGC` is the higher-resolution one.
+  version, `BGC` the higher-resolution one. Reprojected from British National
+  Grid to WGS84 in `src/03_geojson_processing.py`, where the source EPSG code
+  is hardcoded, so check it against the shapefile's XML metadata if you upgrade
+  to a newer release.
+- **Place names** - [GeoNames](https://www.geonames.org/) GB gazetteer, CC BY
+  4.0 rather than OGL but needs crediting the same way.
 
-The attribution statements these licences require are rendered in the site
-footer. If you change the data sources, update that footer to match.
-
-### Boundary processing note
-
-The geojson from the Open Geography Portal is projected in British National Grid
-and is reprojected to WGS84 (EPSG:4326) in `src/03_geojson_processing.py`. The
-source EPSG code is hardcoded there — check it against the shapefile's XML
-metadata if you upgrade to a newer boundary release.
+The attribution these licences require is in the site footer. If you change the
+data sources, update the footer to match.
