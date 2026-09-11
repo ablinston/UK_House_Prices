@@ -147,10 +147,12 @@ def test_the_headline_price_matches_the_exported_matrix(pages, meta, prices):
     for i, area in enumerate(meta['areas']):
         slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
         by_slug.setdefault(slug, i)
+        if area['c'] == 'K02000001':
+            by_slug[''] = i          # the index page is the UK's own page
 
     checked, wrong = 0, []
     for slug, html in pages.items():
-        if not slug or slug not in by_slug:
+        if slug not in by_slug:
             continue
         area = by_slug[slug]
         shown = re.search(r'<span class="pg-stat-value">£([\d,]+)</span>', html)
@@ -335,6 +337,8 @@ def test_the_peak_each_page_quotes_is_its_own(pages, meta, prices):
     for i, area in enumerate(meta['areas']):
         slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
         by_slug.setdefault(slug, i)
+        if area['c'] == 'K02000001':
+            by_slug[''] = i          # the index page is the UK's own page
 
     checked, wrong = 0, []
     for slug, html in pages.items():
@@ -371,8 +375,6 @@ def test_every_page_has_a_working_type_picker(pages, meta):
     types = len(meta['types'])
     broken = []
     for slug, html in pages.items():
-        if not slug:
-            continue                       # the index carries no picker
         options = len(re.findall(r'<option value="\d+">', html))
         blocks = re.findall(r'<div class="pg-type" data-type="(\d+)"( hidden)?>', html)
         shown = [t for t, hidden in blocks if not hidden]
@@ -412,6 +414,8 @@ def test_no_page_claims_history_it_does_not_have(pages, meta, prices):
     for i, area in enumerate(meta['areas']):
         slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
         by_slug.setdefault(slug, i)
+        if area['c'] == 'K02000001':
+            by_slug[''] = i          # the index page is the UK's own page
 
     start_year, start_month = (int(v) for v in meta['months']['start'].split('-'))
 

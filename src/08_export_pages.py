@@ -294,7 +294,7 @@ def head(title, description, path, heading):
       </span>
       <span class="brand-text">
         <span class="brand-name">RealHousePrices.uk</span>
-        <span class="brand-sub">Local authority price changes</span>
+        <span class="brand-sub">Local house prices</span>
       </span>
     </a>
     <div class="topbar-right">
@@ -469,7 +469,12 @@ def ranking(area, t = 0):
 
 
 ####################
-# The area page
+# The pieces both pages are built from
+
+# Lifted out of the two page builders rather than written once in each. They
+# were duplicated, and the transposed change table went into one copy and not
+# the other - which is exactly the kind of drift that only shows up when someone
+# notices the two pages disagree about what a table looks like.
 
 def type_blocks(area, render):
     """One block per housing type, all in the markup, only the first shown.
@@ -486,6 +491,108 @@ def type_blocks(area, render):
         f'{render(t)}</div>'
         for t in range(len(types)))
 
+
+def type_picker():
+    options = ''.join(f'<option value="{t}">{esc(type_label(t))}</option>'
+                      for t in range(len(types)))
+    return (f'<div class="pg-picker">'
+            f'<label for="housing-type">Property type</label>'
+            f'<div class="select-wrap"><select id="housing-type">{options}</select>'
+            f'</div></div>')
+
+
+def type_script():
+    """Every type is already in the markup; this only decides which is on show.
+    With JavaScript off the select does nothing and the page stays on Overall,
+    which is a complete page rather than a broken one."""
+    return '''
+<script>
+(function () {
+  var select = document.getElementById('housing-type');
+  if (!select) return;
+  var blocks = document.querySelectorAll('.pg-type');
+  var rows = document.querySelectorAll('[data-type-row]');
+  select.addEventListener('change', function () {
+    var chosen = select.value;
+    for (var i = 0; i < blocks.length; i++) {
+      blocks[i].hidden = blocks[i].dataset.type !== chosen;
+    }
+    for (var k = 0; k < rows.length; k++) {
+      rows[k].classList.toggle('pg-row-on', rows[k].dataset.typeRow === chosen);
+    }
+  });
+})();
+</script>
+'''
+
+
+def tiles(area, t):
+    window = LATEST - COMMON_WINDOW
+    years = COMMON_WINDOW // 12
+    own = change(real[t], area, window, LATEST)
+    peak = real_peak(area, t)
+    third = ''
+    if peak and peak[0] < LATEST - 2:
+        third = (f'<div class="pg-stat">'
+                 f'<span class="pg-stat-label">Below its '
+                 f'{esc(pretty_month(month_labels[peak[0]]))} peak</span>'
+                 f'<span class="pg-stat-value pg-down">{pct(peak[1])}</span>'
+                 f'</div>')
+    return (f'<div class="pg-headline">'
+            f'<div class="pg-stat">'
+            f'<span class="pg-stat-label">Average price, {esc(LATEST_LABEL)}</span>'
+            f'<span class="pg-stat-value">{money(nominal[t][area][LATEST])}</span>'
+            f'</div>'
+            f'<div class="pg-stat">'
+            f'<span class="pg-stat-label">Real change, {years} years</span>'
+            f'<span class="pg-stat-value {"pg-down" if own < 0 else "pg-up"}">'
+            f'{pct(own)}</span></div>{third}</div>')
+
+
+def prose(area, t, where = None):
+    start = first_observation(area, t)
+    return (f'<p class="pg-standfirst">The average '
+            f'{"house" if t == 0 else type_label(t).lower()} price '
+            f'{where or ("in " + esc(located(area)) + ("," if "," in located(area) else ""))} is '
+            f'{money(nominal[t][area][LATEST])} as of {esc(LATEST_LABEL)}. '
+            f'This is what they have cost since '
+            f'{esc(pretty_month(month_labels[start or 0]))}, in '
+            f"today's money rather than in the cash prices of the day.</p>"
+            f'<p class="pg-verdict">{verdict(area, t)}</p>')
+
+
+# Periods across the columns rather than down the rows, so the two things a
+# reader is here to compare - real against cash - sit one above the other for
+# every window at once instead of being read in pairs down a list.
+def horizons(area, t, name):
+    spans = horizon_rows(area, t)
+    if not spans:
+        return ('<p class="pg-note">No price history for '
+                f'{esc(type_label(t).lower())} homes in {esc(name)}.</p>')
+
+    head_cells = ''.join(
+        f'<th scope="col">{esc(label)}'
+        f'<span class="pg-from">from {esc(frm)}</span></th>'
+        for label, frm, _, _ in spans)
+    real_cells = ''.join(
+        f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
+        for _, _, r, _ in spans)
+    cash_cells = ''.join(f'<td class="pg-num pg-muted">{pct(n)}</td>'
+                         for _, _, _, n in spans)
+
+    return (f'<div class="pg-table-wrap"><table class="pg-table pg-wide">'
+            f'<caption class="visually-hidden">Change in average '
+            f'{esc(type_label(t).lower())} price in {esc(name)}</caption>'
+            f'<thead><tr><th scope="col"><span class="visually-hidden">'
+            f'Measure</span></th>{head_cells}</tr></thead>'
+            f'<tbody>'
+            f'<tr><th scope="row">In real terms</th>{real_cells}</tr>'
+            f'<tr><th scope="row">In cash terms</th>{cash_cells}</tr>'
+            f'</tbody></table></div>')
+
+
+####################
+# The area page
 
 def area_page(area):
     name = areas[area]['n']
@@ -509,67 +616,6 @@ def area_page(area):
     description = (f'Average house prices in {name}: the real-terms change over '
                    f'1, 5 and 10 years, and the full history since '
                    f'{FIRST_LABEL[-4:]} in one graph. Land Registry data.')
-
-    def tiles(t):
-        own = change(real[t], area, window, LATEST)
-        peak = real_peak(area, t)
-        third = ''
-        if peak and peak[0] < LATEST - 2:
-            third = (f'<div class="pg-stat">'
-                     f'<span class="pg-stat-label">Below its '
-                     f'{esc(pretty_month(month_labels[peak[0]]))} peak</span>'
-                     f'<span class="pg-stat-value pg-down">{pct(peak[1])}</span>'
-                     f'</div>')
-        return (f'<div class="pg-headline">'
-                f'<div class="pg-stat">'
-                f'<span class="pg-stat-label">Average price, {esc(LATEST_LABEL)}</span>'
-                f'<span class="pg-stat-value">{money(nominal[t][area][LATEST])}</span>'
-                f'</div>'
-                f'<div class="pg-stat">'
-                f'<span class="pg-stat-label">Real change, {years} years</span>'
-                f'<span class="pg-stat-value {"pg-down" if own < 0 else "pg-up"}">'
-                f'{pct(own)}</span></div>{third}</div>')
-
-    def prose(t):
-        return (f'<p class="pg-standfirst">The average '
-                f'{"house" if t == 0 else type_label(t).lower()} price in '
-                f'{esc(located(area))}{"," if "," in located(area) else ""} is '
-                f'{money(nominal[t][area][LATEST])} as of {esc(LATEST_LABEL)}. '
-                f'This is what they have cost there since '
-                f'{esc(pretty_month(month_labels[first_observation(area, t) or 0]))}, '
-                f"in today's money rather than in the cash prices of the day.</p>"
-                f'<p class="pg-verdict">{verdict(area, t)}</p>')
-
-    # Periods across the columns rather than down the rows, so the two things a
-    # reader is here to compare - real against cash - sit one above the other
-    # for every window at once instead of being read in pairs down a list.
-    def horizons(t):
-        spans = horizon_rows(area, t)
-        if not spans:
-            return ('<p class="pg-note">No price history for '
-                    f'{esc(type_label(t).lower())} homes in {esc(name)}.</p>')
-
-        head_cells = ''.join(
-            f'<th scope="col">{esc(label)}'
-            f'<span class="pg-from">from {esc(frm)}</span></th>'
-            for label, frm, _, _ in spans)
-
-        real_cells = ''.join(
-            f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
-            for _, _, r, _ in spans)
-
-        cash_cells = ''.join(f'<td class="pg-num pg-muted">{pct(n)}</td>'
-                             for _, _, _, n in spans)
-
-        return (f'<div class="pg-table-wrap"><table class="pg-table pg-wide">'
-                f'<caption class="visually-hidden">Change in average '
-                f'{esc(type_label(t).lower())} price in {esc(name)}</caption>'
-                f'<thead><tr><th scope="col"><span class="visually-hidden">'
-                f'Measure</span></th>{head_cells}</tr></thead>'
-                f'<tbody>'
-                f'<tr><th scope="row">In real terms</th>{real_cells}</tr>'
-                f'<tr><th scope="row">In cash terms</th>{cash_cells}</tr>'
-                f'</tbody></table></div>')
 
     def context(t):
         rank = ranking(area, t)
@@ -606,9 +652,6 @@ def area_page(area):
 
     type_rows = ''.join(type_row(t) for t in range(len(types)))
 
-    options = ''.join(f'<option value="{t}">{esc(type_label(t))}</option>'
-                      for t in range(len(types)))
-
     siblings = [i for i in page_areas
                 if tier_of(areas[i]['c']) == tier and i != area]
     sibling_links = ''.join(
@@ -625,17 +668,13 @@ def area_page(area):
 
   <h1>{esc(name)} house prices, adjusted for inflation</h1>
 
-  <div class="pg-picker">
-    <label for="housing-type">Property type</label>
-    <div class="select-wrap"><select id="housing-type">{options}</select></div>
-  </div>
-
-  {type_blocks(area, tiles)}
+  {type_picker()}
+  {type_blocks(area, lambda t: tiles(area, t))}
   {type_blocks(area, lambda t: sparkline(area, t))}
-  {type_blocks(area, prose)}
+  {type_blocks(area, lambda t: prose(area, t))}
 
   <h2>How {esc(name)} house prices have changed</h2>
-  {type_blocks(area, horizons)}
+  {type_blocks(area, lambda t: horizons(area, t, name))}
 
   <h2>By property type</h2>
   <div class="pg-table-wrap">
@@ -657,27 +696,7 @@ def area_page(area):
   <h2>Other {esc(tier)}{"" if tier.endswith('y') else "s"}</h2>
   <ul class="pg-siblings">{sibling_links}</ul>
 </main>
-
-<!-- Every type is already in the markup above; this only decides which one is
-     on show. With JavaScript off the select does nothing and the page stays on
-     Overall, which is a complete page rather than a broken one. -->
-<script>
-(function () {{
-  var select = document.getElementById('housing-type');
-  if (!select) return;
-  var blocks = document.querySelectorAll('.pg-type');
-  var rows = document.querySelectorAll('[data-type-row]');
-  select.addEventListener('change', function () {{
-    var chosen = select.value;
-    for (var i = 0; i < blocks.length; i++) {{
-      blocks[i].hidden = blocks[i].dataset.type !== chosen;
-    }}
-    for (var k = 0; k < rows.length; k++) {{
-      rows[k].classList.toggle('pg-row-on', rows[k].dataset.typeRow === chosen);
-    }}
-  }});
-}})();
-</script>
+{type_script()}
 '''.replace('Other countys', 'Other counties') + footer()
 
 
@@ -688,38 +707,26 @@ def index_page():
     area = uk_area
     window = LATEST - COMMON_WINDOW
     years = COMMON_WINDOW // 12
-    own_real = change(real[0], area, window, LATEST)
-
-    peak = real_peak(area)
-    peak_tile = ''
-    if peak and peak[0] < LATEST - 2:
-        peak_tile = f'''<div class="pg-stat">
-      <span class="pg-stat-label">Below its {esc(pretty_month(month_labels[peak[0]]))} peak</span>
-      <span class="pg-stat-value pg-down">{pct(peak[1])}</span>
-    </div>'''
 
     title = 'UK House Prices by Area, Adjusted for Inflation'
     description = ('House prices by county, region and country, adjusted for '
                    'inflation. Average prices and the real-terms change since '
                    '1995, from Land Registry data.')
 
-    rows = ''.join(
-        f'<tr><th scope="row">{esc(label)}<span class="pg-from">from {esc(frm)}</span></th>'
-        f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
-        f'<td class="pg-num pg-muted">{pct(n)}</td></tr>'
-        for label, frm, r, n in horizon_rows(area))
-
-    directory = ''
-    for heading, members in groups:
-        if not members:
-            continue
-        items = ''.join(
-            f'<li><a href="/house-prices/{slugs[i]}/">{esc(areas[i]["n"])}</a>'
-            f'<span class="pg-dir-value {"pg-down" if change(real[0], i, window, LATEST) < 0 else "pg-up"}">'
-            f'{pct(change(real[0], i, window, LATEST), 0)}</span></li>'
-            for i in sorted(members, key = lambda i: areas[i]['n']))
-        directory += (f'<h2>{esc(heading)}</h2>'
-                      f'<ul class="pg-directory">{items}</ul>')
+    def directory(t):
+        out = ''
+        for heading, members in groups:
+            if not members:
+                continue
+            items = ''.join(
+                f'<li><a href="/house-prices/{slugs[i]}/">{esc(areas[i]["n"])}</a>'
+                f'<span class="pg-dir-value '
+                f'{"pg-down" if change(real[t], i, window, LATEST) < 0 else "pg-up"}">'
+                f'{pct(change(real[t], i, window, LATEST), 0)}</span></li>'
+                for i in sorted(members, key = lambda i: areas[i]['n']))
+            out += (f'<h3 class="pg-dir-head">{esc(heading)}</h3>'
+                    f'<ul class="pg-directory">{items}</ul>')
+        return out
 
     return head(title, description, '/house-prices/', 'House prices by area') + f'''
 <main class="pg">
@@ -730,46 +737,24 @@ def index_page():
 
   <h1>UK house prices by area, adjusted for inflation</h1>
 
-  <div class="pg-headline">
-    <div class="pg-stat">
-      <span class="pg-stat-label">UK average price, {esc(LATEST_LABEL)}</span>
-      <span class="pg-stat-value">{money(nominal[0][area][LATEST])}</span>
-    </div>
-    <div class="pg-stat">
-      <span class="pg-stat-label">Real change, {years} years</span>
-      <span class="pg-stat-value {"pg-down" if own_real < 0 else "pg-up"}">{pct(own_real)}</span>
-    </div>
-    {peak_tile}
-  </div>
+  {type_picker()}
+  {type_blocks(area, lambda t: tiles(area, t))}
+  {type_blocks(area, lambda t: sparkline(area, t))}
+  {type_blocks(area, lambda t: prose(area, t, where = 'across the UK'))}
 
-  {sparkline(area)}
+  <h2>How UK house prices have changed</h2>
+  {type_blocks(area, lambda t: horizons(area, t, 'the UK'))}
 
-  <p class="pg-standfirst">The average house price across the UK is
-     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
-     homes have cost since {FIRST_LABEL}, in today's money rather than in the
-     cash prices of the day.</p>
-
-  <p class="pg-verdict">{verdict(area)}</p>
-
-  <h2>How UK prices have changed</h2>
-  <div class="pg-table-wrap">
-    <table class="pg-table">
-      <caption class="visually-hidden">Change in the UK average house price</caption>
-      <thead><tr><th scope="col">Period</th><th scope="col">In real terms</th>
-        <th scope="col">In cash terms</th></tr></thead>
-      <tbody>{rows}</tbody>
-    </table>
-  </div>
-
-  <p class="pg-note">The percentage beside each area below is its real-terms
-     change over the last {years} years.</p>
-
-  {directory}
+  <h2>Every area</h2>
+  <p class="pg-note">The percentage beside each area is its real-terms change
+     over the last {years} years, for the property type selected above.</p>
+  {type_blocks(area, directory)}
 
   <p class="pg-cta">
     <a class="pg-button" href="/">Explore every local authority on the map</a>
   </p>
 </main>
+{type_script()}
 ''' + footer()
 
 
