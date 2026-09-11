@@ -149,6 +149,21 @@ Light and dark themes follow the visitor's browser setting, with every colour,
 including the map ramp and the chart, defined as a CSS custom property in
 `web/css/style.css`.
 
+## Licence
+
+The code is under the [GNU Affero General Public License v3.0](LICENSE). It is
+open source in the ordinary sense - read it, run it, fork it, learn from it -
+with one condition that matters for something deployed as a website: anyone
+running a modified version as a network service has to publish their source
+too. A permissive licence would let a modified copy of this site go up with
+nothing given back, and this is the one clause that asks for something in
+return.
+
+What the licence does not cover is set out in [NOTICE](NOTICE): the data, which
+is Open Government Licence and was free to everyone already; the name, domain
+and visual design, which are not licensed with the code; and the third-party
+components in `web/vendor/`, which keep the licences they arrived under.
+
 ## Data sources and licensing
 
 Source data is published under the
