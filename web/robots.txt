@@ -1,0 +1,8 @@
+# Everything here is public data under the Open Government Licence, so there is
+# nothing to hold back from a crawler. The sitemap line is the only part that
+# earns its keep: without it a single-page site with no inbound links can sit
+# undiscovered for weeks.
+User-agent: *
+Allow: /
+
+Sitemap: https://realhouseprices.uk/sitemap.xml

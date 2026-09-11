@@ -892,6 +892,102 @@ select:focus-visible {
 .u-legend .u-marker { border-radius: 2px; }
 .u-select { background: var(--focus-ring); }
 
+/* ---------- Masthead ---------- */
+
+/* The h1 the page went without. Pitched as a line of context rather than a
+   headline: at the weight of the panel labels it explains the tool without
+   shouting over it, and search reads the markup rather than the type size, so
+   nothing is given up by keeping it small. On a wide screen the description
+   sits beside it behind a hairline; below that it drops to its own line, where
+   a dangling divider would look like a mistake. */
+.masthead {
+	max-width: 1680px;
+	margin: 0 auto;
+	padding: 15px 20px 1px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 3px 11px;
+}
+
+.masthead h1 {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: -0.012em;
+	line-height: 1.4;
+	color: var(--text);
+}
+
+.masthead-sub {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: var(--text-subtle);
+	text-wrap: pretty;
+}
+
+@media (min-width: 960px) {
+	.masthead-sub {
+		padding-left: 11px;
+		border-left: 1px solid var(--border-strong);
+	}
+}
+
+/* ---------- About and questions ---------- */
+
+/* Below the map on purpose: it exists to be read by a search engine and by the
+   occasional visitor who scrolls, and neither is worth delaying the tool for. */
+.about {
+	border-top: 1px solid var(--border);
+	background: var(--surface);
+}
+
+.about-inner {
+	max-width: 680px;
+	margin: 0 auto;
+	padding: 32px 20px 36px;
+}
+
+.about h2 {
+	margin: 0 0 10px;
+	font-size: 15.5px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+	line-height: 1.25;
+	color: var(--text);
+}
+
+.about h2 + p { margin-top: 0; }
+
+.about p {
+	margin: 0 0 14px;
+	font-size: 14.5px;
+	line-height: 1.65;
+	color: var(--text-muted);
+}
+
+.about p:last-child { margin-bottom: 0; }
+
+#faq-heading { margin-top: 30px; }
+
+.faq { margin: 0; }
+
+.faq dt {
+	margin-top: 18px;
+	font-size: 14.5px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--text);
+}
+
+.faq dd {
+	margin: 5px 0 0;
+	font-size: 14.5px;
+	line-height: 1.65;
+	color: var(--text-muted);
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {

@@ -228,6 +228,26 @@ if missing:
 
 
 ####################
+# Sitemap
+
+# Written from here rather than kept by hand so that 'lastmod' tracks the data
+# it describes. A date typed into the file once is a month stale by the next
+# refresh, and a sitemap whose dates stop matching what the crawler finds on the
+# page is one the crawler stops taking any notice of.
+SITE_URL = 'https://realhouseprices.uk/'
+
+with open('web/sitemap.xml', 'w') as f:
+    f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            '  <url>\n'
+            f'    <loc>{SITE_URL}</loc>\n'
+            f'    <lastmod>{meta["generated"]}</lastmod>\n'
+            '    <changefreq>monthly</changefreq>\n'
+            '  </url>\n'
+            '</urlset>\n')
+
+
+####################
 # Report what was written
 
 print('\nWritten to ' + OUT_DIR + ':')
@@ -235,6 +255,8 @@ written = [f'prices-{t}.bin' for t in range(len(housing_types))] + ['meta.json',
 for name in written:
     size = os.path.getsize(f'{OUT_DIR}/{name}') / 1024
     print(f'  {name:<14} {size:>8.0f} KB')
+
+print('Written to web: sitemap.xml')
 
 # Remove the single-file matrix left by earlier versions of this script
 if os.path.exists(f'{OUT_DIR}/prices.bin'):
