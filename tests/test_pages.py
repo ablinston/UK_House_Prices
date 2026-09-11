@@ -338,14 +338,62 @@ def test_the_peak_each_page_quotes_is_its_own(pages, meta, prices):
 
     checked, wrong = 0, []
     for slug, html in pages.items():
-        shown = re.search(r'Below its ([A-Z][a-z]+ \d{4}) peak', html)
-        if not shown or slug not in by_slug:
+        if slug not in by_slug:
             continue
-        series = prices[0][by_slug[slug]] / (cpi / cpi[-1])
-        checked += 1
-        expected = label(int(np.nanargmax(series)))
-        if shown.group(1) != expected:
-            wrong.append((slug, shown.group(1), expected))
+        area = by_slug[slug]
+        # Each housing type states its own peak, so each one is checked
+        for block in re.findall(r'data-type="(\d+)"[^>]*>(.*?)'
+                                r'(?=<div class="pg-type"|\Z)', html, re.S):
+            t, body = int(block[0]), block[1]
+            shown = re.search(r'Below its ([A-Z][a-z]+ \d{4}) peak', body)
+            if not shown:
+                continue
+            series = prices[t][area] / (cpi / cpi[-1])
+            if np.all(np.isnan(series)):
+                continue
+            checked += 1
+            expected = label(int(np.nanargmax(series)))
+            if shown.group(1) != expected:
+                wrong.append((slug, t, shown.group(1), expected))
 
     assert checked, 'no page states a peak month - has the tile been removed?'
     assert not wrong, f'pages naming a peak that is not their own: {wrong}'
+
+
+def test_every_page_has_a_working_type_picker(pages, meta):
+    """The dropdown switches between blocks that are already in the markup.
+
+    Which means three things have to hold together: an option per housing type,
+    a block per housing type wherever the page shows a figure, and exactly one
+    of each set on show. A missing block leaves the page blank when that type is
+    picked; a second unhidden one stacks two readings on top of each other.
+    """
+    types = len(meta['types'])
+    broken = []
+    for slug, html in pages.items():
+        if not slug:
+            continue                       # the index carries no picker
+        options = len(re.findall(r'<option value="\d+">', html))
+        blocks = re.findall(r'<div class="pg-type" data-type="(\d+)"( hidden)?>', html)
+        shown = [t for t, hidden in blocks if not hidden]
+        counts = {t for t, _ in blocks}
+
+        if options != types:
+            broken.append((slug, f'{options} options for {types} types'))
+        elif counts != set(str(t) for t in range(types)):
+            broken.append((slug, f'blocks cover {sorted(counts)}'))
+        elif len(blocks) % types:
+            broken.append((slug, f'{len(blocks)} blocks is not a multiple of {types}'))
+        elif set(shown) != {'0'} or len(shown) != len(blocks) // types:
+            broken.append((slug, f'visible blocks: {shown}'))
+
+    assert not broken, f'pages with a broken type picker: {broken[:5]}'
+
+
+def test_the_hidden_blocks_are_actually_hidden():
+    """The blocks sit on grids and flex rows, and a display rule on an element
+    beats the browser's own [hidden] default. Without this one line every page
+    shows all five housing types stacked on top of each other."""
+    css = (ROOT / 'web' / 'css' / 'style.css').read_text(encoding = 'utf-8')
+    assert re.search(r'\[hidden\]\s*{[^}]*display:\s*none\s*!important', css), (
+        'style.css has no [hidden] { display: none !important } rule')

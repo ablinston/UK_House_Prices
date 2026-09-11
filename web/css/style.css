@@ -1305,6 +1305,37 @@ select:focus-visible {
 	.pg-stat-value { font-size: 23px; }
 }
 
+/* The property-type picker on an area page, and the five blocks it switches
+   between. Every type is in the markup and only one is shown, so the attribute
+   is what does the hiding — spelled out with !important because the blocks it
+   sits on are grids and flex rows, and a display rule on the element beats the
+   browser's own [hidden] default without it. */
+[hidden] { display: none !important; }
+
+.pg-picker {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin: 16px 0 0;
+}
+
+.pg-picker label {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+}
+
+.pg-picker .select-wrap { min-width: 190px; }
+
+/* The comparison table keeps every type side by side whatever is picked, so the
+   picked one is marked instead — otherwise the control and the table look like
+   they disagree about what the page is showing. */
+.pg-row-on { background: var(--surface-sunken); }
+.pg-row-on th { color: var(--accent-bright); }
+
 /* ---------- Footer ---------- */
 
 .site-footer {

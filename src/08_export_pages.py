@@ -144,7 +144,13 @@ def tier_of(code):
     return TIERS.get(code[:3], 'area')
 
 
-def real_peak(area):
+def type_label(t):
+    """'SemiDetached' is how the Land Registry columns are spelled, and is not
+    how anyone says it."""
+    return 'Semi-detached' if types[t] == 'SemiDetached' else types[t]
+
+
+def real_peak(area, t = 0):
     """The month this area's real prices were highest, and how far below it
     they are now.
 
@@ -153,7 +159,7 @@ def real_peak(area):
     (2016) from the South East (2021) from the North East (2007). Nobody else
     publishes it area by area, which is most of why it is here.
     """
-    series = real[0][area]
+    series = real[t][area]
     if np.all(np.isnan(series)):
         return None
     at = int(np.nanargmax(series))
@@ -307,7 +313,7 @@ def footer():
 '''
 
 
-def sparkline(area):
+def sparkline(area, t = 0):
     """Real and nominal average price, 1995 to the latest month.
 
     Drawn here rather than in the browser: the chart is the substance of the
@@ -318,7 +324,7 @@ def sparkline(area):
     W, H = 720, 260
     PAD_L, PAD_R, PAD_T, PAD_B = 58, 12, 14, 26
 
-    series = {'real': real[0][area], 'nominal': nominal[0][area]}
+    series = {'real': real[t][area], 'nominal': nominal[t][area]}
     finite = np.concatenate([s[np.isfinite(s)] for s in series.values()])
     if not finite.size:
         return ''
@@ -359,7 +365,7 @@ def sparkline(area):
 
     return f'''<figure class="pg-figure">
   <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="none"
-       aria-label="Average price in {esc(areas[area]['n'])}, real and nominal, {FIRST_LABEL} to {LATEST_LABEL}">
+       aria-label="Average {esc(type_label(t)).lower()} price in {esc(areas[area]['n'])}, real and nominal, {FIRST_LABEL} to {LATEST_LABEL}">
     {grid}{axis}
     <path class="pg-nominal" d="{paths['nominal']}" fill="none"/>
     <path class="pg-real" d="{paths['real']}" fill="none"/>
@@ -371,7 +377,7 @@ def sparkline(area):
 </figure>'''
 
 
-def horizon_rows(area):
+def horizon_rows(area, t = 0):
     rows = []
     for label, back in HORIZONS:
         if back is None:
@@ -383,34 +389,36 @@ def horizon_rows(area):
         if frm < 0:
             continue
         rows.append((label, pretty_month(month_labels[frm]),
-                     change(real[0], area, frm, LATEST),
-                     change(nominal[0], area, frm, LATEST)))
+                     change(real[t], area, frm, LATEST),
+                     change(nominal[t], area, frm, LATEST)))
     return rows
 
 
-def verdict(area):
+def verdict(area, t = 0):
     """A sentence saying what the numbers mean, so the page states something
     rather than only displaying something. Assembled from the figures, so it
     restates itself on every refresh instead of going stale."""
     name = areas[area]['n']
     window = LATEST - COMMON_WINDOW
-    r = change(real[0], area, window, LATEST)
-    n = change(nominal[0], area, window, LATEST)
+    r = change(real[t], area, window, LATEST)
+    n = change(nominal[t], area, window, LATEST)
     years = COMMON_WINDOW // 12
+    what = 'home' if t == 0 else f'{type_label(t).lower()} home'
 
     if not np.isfinite(r) or not np.isfinite(n):
-        return f'{esc(name)} has a full monthly price history from {FIRST_LABEL}.'
+        return (f'{esc(name)} has no complete {what} series over the last '
+                f'{years} years.')
 
     if r < 0:
-        opening = (f'Over the last {years} years the average home in {esc(name)} has '
-                   f'lost <b>{abs(r):.1f}%</b> of its value in real terms, even '
+        opening = (f'Over the last {years} years the average {what} in {esc(name)} '
+                   f'has lost <b>{abs(r):.1f}%</b> of its value in real terms, even '
                    f'though the cash price is <b>{n:.1f}% higher</b>.')
     else:
-        opening = (f'Over the last {years} years the average home in {esc(name)} has '
-                   f'gained <b>{r:.1f}%</b> in real terms, on a cash price '
+        opening = (f'Over the last {years} years the average {what} in {esc(name)} '
+                   f'has gained <b>{r:.1f}%</b> in real terms, on a cash price '
                    f'<b>{n:.1f}% higher</b>.')
 
-    peak = real_peak(area)
+    peak = real_peak(area, t)
     if not peak:
         return opening
 
@@ -418,12 +426,12 @@ def verdict(area):
     if at >= LATEST - 2:
         return opening + (f' Prices there have never been higher in real terms '
                           f'than they are now.')
-    return opening + (f' Adjusted for inflation, prices in {esc(name)} peaked in '
+    return opening + (f' Adjusted for inflation, {what} prices in {esc(name)} peaked in '
                       f'<b>{pretty_month(month_labels[at])}</b> and are '
                       f'<b>{abs(gap):.1f}% below</b> that today.')
 
 
-def ranking(area):
+def ranking(area, t = 0):
     """Where this area sits among its own kind over the common window.
 
     Ranking on each area's own peak would compare 2016 with 2022 and call the
@@ -435,7 +443,7 @@ def ranking(area):
         return None
 
     window = LATEST - COMMON_WINDOW
-    scored = [(change(real[0], i, window, LATEST), i) for i in peers]
+    scored = [(change(real[t], i, window, LATEST), i) for i in peers]
     scored = [(v, i) for v, i in scored if np.isfinite(v)]
     scored.sort(reverse = True)
     order = [i for _, i in scored]
@@ -447,11 +455,29 @@ def ranking(area):
 ####################
 # The area page
 
+def type_blocks(area, render):
+    """One block per housing type, all in the markup, only the first shown.
+
+    The dropdown toggles between them rather than fetching or rebuilding
+    anything, which keeps three things true at once: the page is complete with
+    JavaScript switched off, a crawler reads every type rather than only the
+    default, and switching is instant because nothing has to be computed. The
+    cost is a larger file, which gzip takes most of back - these blocks are
+    mostly digits.
+    """
+    return ''.join(
+        f'<div class="pg-type" data-type="{t}"{"" if t == 0 else " hidden"}>'
+        f'{render(t)}</div>'
+        for t in range(len(types)))
+
+
 def area_page(area):
     name = areas[area]['n']
     tier = tier_of(areas[area]['c'])
     slug = slugs[area]
     path = f'/house-prices/{slug}/'
+    window = LATEST - COMMON_WINDOW
+    years = COMMON_WINDOW // 12
 
     # '{name} house prices' is the head term and goes first. 'UK' is not filler
     # here: it is what separates this Surrey from the one in British Columbia.
@@ -468,46 +494,87 @@ def area_page(area):
                    f'1, 5 and 10 years, and the full history since '
                    f'{FIRST_LABEL[-4:]} in one graph. Land Registry data.')
 
-    rows = ''.join(
-        f'<tr><th scope="row">{esc(label)}<span class="pg-from">from {esc(frm)}</span></th>'
-        f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
-        f'<td class="pg-num pg-muted">{pct(n)}</td></tr>'
-        for label, frm, r, n in horizon_rows(area))
+    def tiles(t):
+        own = change(real[t], area, window, LATEST)
+        peak = real_peak(area, t)
+        third = ''
+        if peak and peak[0] < LATEST - 2:
+            third = (f'<div class="pg-stat">'
+                     f'<span class="pg-stat-label">Below its '
+                     f'{esc(pretty_month(month_labels[peak[0]]))} peak</span>'
+                     f'<span class="pg-stat-value pg-down">{pct(peak[1])}</span>'
+                     f'</div>')
+        return (f'<div class="pg-headline">'
+                f'<div class="pg-stat">'
+                f'<span class="pg-stat-label">Average price, {esc(LATEST_LABEL)}</span>'
+                f'<span class="pg-stat-value">{money(nominal[t][area][LATEST])}</span>'
+                f'</div>'
+                f'<div class="pg-stat">'
+                f'<span class="pg-stat-label">Real change, {years} years</span>'
+                f'<span class="pg-stat-value {"pg-down" if own < 0 else "pg-up"}">'
+                f'{pct(own)}</span></div>{third}</div>')
 
-    window = LATEST - COMMON_WINDOW
-    years = COMMON_WINDOW // 12
-    type_rows = ''.join(
-        f'<tr><th scope="row">{esc("Semi-detached" if t == "SemiDetached" else t)}</th>'
-        f'<td class="pg-num">{money(nominal[i][area][LATEST])}</td>'
-        f'<td class="pg-num {"pg-down" if change(real[i], area, window, LATEST) < 0 else "pg-up"}">'
-        f'{pct(change(real[i], area, window, LATEST))}</td></tr>'
-        for i, t in enumerate(types))
+    def prose(t):
+        return (f'<p class="pg-standfirst">The average '
+                f'{"house" if t == 0 else type_label(t).lower()} price in '
+                f'{esc(located(area))}{"," if "," in located(area) else ""} is '
+                f'{money(nominal[t][area][LATEST])} as of {esc(LATEST_LABEL)}. '
+                f'This is what homes have cost there since {FIRST_LABEL}, in '
+                f"today's money rather than in the cash prices of the day.</p>"
+                f'<p class="pg-verdict">{verdict(area, t)}</p>')
 
-    rank = ranking(area)
-    rank_line = ''
-    if rank:
-        position, total, tier_name = rank
-        rank_line = (f'<p class="pg-rank">Ranked <b>{position} of {total}</b> '
-                     f'{esc(tier_name)}{"" if tier_name.endswith("y") else "s"} '
-                     f'by real-terms change over the last {years} years, '
-                     f'best first.</p>').replace('countys', 'counties')
+    def horizons(t):
+        rows = ''.join(
+            f'<tr><th scope="row">{esc(label)}'
+            f'<span class="pg-from">from {esc(frm)}</span></th>'
+            f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
+            f'<td class="pg-num pg-muted">{pct(n)}</td></tr>'
+            for label, frm, r, n in horizon_rows(area, t))
+        return (f'<div class="pg-table-wrap"><table class="pg-table">'
+                f'<caption class="visually-hidden">Change in average '
+                f'{esc(type_label(t).lower())} price in {esc(name)}</caption>'
+                f'<thead><tr><th scope="col">Period</th>'
+                f'<th scope="col">In real terms</th>'
+                f'<th scope="col">In cash terms</th></tr></thead>'
+                f'<tbody>{rows}</tbody></table></div>')
 
-    peak = real_peak(area)
-    peak_tile = ''
-    if peak and peak[0] < LATEST - 2:
-        peak_tile = f'''<div class="pg-stat">
-      <span class="pg-stat-label">Below its {esc(pretty_month(month_labels[peak[0]]))} peak</span>
-      <span class="pg-stat-value pg-down">{pct(peak[1])}</span>
-    </div>'''
+    def context(t):
+        rank = ranking(area, t)
+        line = ''
+        if rank:
+            position, total, tier_name = rank
+            line = (f'<p class="pg-rank">Ranked <b>{position} of {total}</b> '
+                    f'{esc(tier_name)}{"" if tier_name.endswith("y") else "s"} '
+                    f'by real-terms change over the last {years} years, '
+                    f'best first.</p>').replace('countys', 'counties')
 
-    uk_real = change(real[0], uk_area, window, LATEST)
-    own_real = change(real[0], area, window, LATEST)
-    versus = ''
-    if np.isfinite(uk_real) and np.isfinite(own_real):
-        gap = own_real - uk_real
-        versus = (f'<p>Against the UK as a whole, which is {pct(uk_real)} in real '
-                  f'terms over the same period, {esc(name)} is '
-                  f'<b>{abs(gap):.1f} points {"ahead" if gap > 0 else "behind"}</b>.</p>')
+        uk = change(real[t], uk_area, window, LATEST)
+        own = change(real[t], area, window, LATEST)
+        versus = ''
+        if np.isfinite(uk) and np.isfinite(own):
+            gap = own - uk
+            versus = (f'<p>Against the UK as a whole, which is {pct(uk)} in real '
+                      f'terms over the same period, {esc(name)} is '
+                      f'<b>{abs(gap):.1f} points '
+                      f'{"ahead" if gap > 0 else "behind"}</b>.</p>')
+        return line + versus
+
+    # The comparison table stays whole whatever is selected - its job is to put
+    # the types beside each other - but the selected row is marked so the
+    # dropdown and the table never look like they disagree.
+    def type_row(t):
+        moved = change(real[t], area, window, LATEST)
+        on = ' class="pg-row-on"' if t == 0 else ''
+        return (f'<tr data-type-row="{t}"{on}>'
+                f'<th scope="row">{esc(type_label(t))}</th>'
+                f'<td class="pg-num">{money(nominal[t][area][LATEST])}</td>'
+                f'<td class="pg-num {"pg-down" if moved < 0 else "pg-up"}">'
+                f'{pct(moved)}</td></tr>')
+
+    type_rows = ''.join(type_row(t) for t in range(len(types)))
+
+    options = ''.join(f'<option value="{t}">{esc(type_label(t))}</option>'
+                      for t in range(len(types)))
 
     siblings = [i for i in page_areas
                 if tier_of(areas[i]['c']) == tier and i != area]
@@ -525,36 +592,17 @@ def area_page(area):
 
   <h1>{esc(name)} house prices, adjusted for inflation</h1>
 
-  <div class="pg-headline">
-    <div class="pg-stat">
-      <span class="pg-stat-label">Average price, {esc(LATEST_LABEL)}</span>
-      <span class="pg-stat-value">{money(nominal[0][area][LATEST])}</span>
-    </div>
-    <div class="pg-stat">
-      <span class="pg-stat-label">Real change, {years} years</span>
-      <span class="pg-stat-value {"pg-down" if own_real < 0 else "pg-up"}">{pct(own_real)}</span>
-    </div>
-    {peak_tile}
+  <div class="pg-picker">
+    <label for="housing-type">Property type</label>
+    <div class="select-wrap"><select id="housing-type">{options}</select></div>
   </div>
 
-  {sparkline(area)}
-
-  <p class="pg-standfirst">The average house price in {esc(located(area))}{',' if ',' in located(area) else ''} is
-     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
-     homes have cost there since {FIRST_LABEL}, in today's money rather than in
-     the cash prices of the day.</p>
-
-  <p class="pg-verdict">{verdict(area)}</p>
+  {type_blocks(area, tiles)}
+  {type_blocks(area, lambda t: sparkline(area, t))}
+  {type_blocks(area, prose)}
 
   <h2>How {esc(name)} house prices have changed</h2>
-  <div class="pg-table-wrap">
-    <table class="pg-table">
-      <caption class="visually-hidden">Change in average house price in {esc(name)}</caption>
-      <thead><tr><th scope="col">Period</th><th scope="col">In real terms</th>
-        <th scope="col">In cash terms</th></tr></thead>
-      <tbody>{rows}</tbody>
-    </table>
-  </div>
+  {type_blocks(area, horizons)}
 
   <h2>By property type</h2>
   <div class="pg-table-wrap">
@@ -567,8 +615,7 @@ def area_page(area):
   </div>
 
   <h2>{esc(name)} in context</h2>
-  {rank_line}
-  {versus}
+  {type_blocks(area, context)}
 
   <p class="pg-cta">
     <a class="pg-button" href="/?area={esc(areas[area]['c'])}">See {esc(name)} on the map</a>
@@ -577,6 +624,27 @@ def area_page(area):
   <h2>Other {esc(tier)}{"" if tier.endswith('y') else "s"}</h2>
   <ul class="pg-siblings">{sibling_links}</ul>
 </main>
+
+<!-- Every type is already in the markup above; this only decides which one is
+     on show. With JavaScript off the select does nothing and the page stays on
+     Overall, which is a complete page rather than a broken one. -->
+<script>
+(function () {{
+  var select = document.getElementById('housing-type');
+  if (!select) return;
+  var blocks = document.querySelectorAll('.pg-type');
+  var rows = document.querySelectorAll('[data-type-row]');
+  select.addEventListener('change', function () {{
+    var chosen = select.value;
+    for (var i = 0; i < blocks.length; i++) {{
+      blocks[i].hidden = blocks[i].dataset.type !== chosen;
+    }}
+    for (var k = 0; k < rows.length; k++) {{
+      rows[k].classList.toggle('pg-row-on', rows[k].dataset.typeRow === chosen);
+    }}
+  }});
+}})();
+</script>
 '''.replace('Other countys', 'Other counties') + footer()
 
 
