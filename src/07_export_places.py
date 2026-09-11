@@ -167,17 +167,4 @@ for rank, threshold in enumerate(RANK_THRESHOLDS):
     count = sum(1 for feature in features if feature['properties']['r'] == rank)
     print(f'  rank {rank}  from pop {threshold:>6}  {count:>4} places')
 
-# Only the U+0000-U+00FF glyph range is committed under web/vendor/fonts/glyphs,
-# because every UK place name above the population cut-off happens to be plain
-# ASCII. If a later GeoNames refresh introduces an accented name it would render
-# as blank boxes, so flag it here: the fix is to add the next range (256-511.pbf)
-# from the OpenMapTiles font release alongside the one already there.
-outside = sorted({character
-                  for feature in features
-                  for character in feature['properties']['n']
-                  if ord(character) > 0x00FF})
-if outside:
-    print(f'  WARNING: characters with no committed glyph range: {outside}')
-    print('           add web/vendor/fonts/glyphs/NotoSans-Regular/256-511.pbf')
-
 print(f'\n{OUT_PATH}  {os.path.getsize(OUT_PATH) / 1024:.0f} KB')

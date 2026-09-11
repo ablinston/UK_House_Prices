@@ -143,7 +143,9 @@ The choropleth is drawn by a purpose-built 2D canvas renderer in
 transform, and replaced MapLibre and its 784 KB of JavaScript. Geography comes
 from the boundary polygons and a collision-managed place label layer rather
 than third-party tiles, which avoids their cost and usage restrictions. The
-MapLibre files are still in `web/vendor/` but are not loaded.
+MapLibre build, its stylesheet, its glyph tiles and the renderer that used them
+have all been deleted - nothing loaded them, and they were still being deployed.
+Git history has them if the comparison is ever wanted again.
 
 Light and dark themes follow the visitor's browser setting, with every colour,
 including the map ramp and the chart, defined as a CSS custom property in

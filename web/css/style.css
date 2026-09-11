@@ -1,8 +1,8 @@
 /* UK House Prices — design system and layout.
  *
  * Every colour is a token on :root, overridden under prefers-color-scheme:dark.
- * The map and chart read these same tokens at runtime (see js/map.js and
- * js/chart.js) rather than hardcoding values, so the whole interface — the
+ * The map and chart read these same tokens at runtime (see js/map-canvas.js
+ * and js/chart.js) rather than hardcoding values, so the whole interface — the
  * choropleth included — follows the visitor's own browser setting. */
 
 @font-face {
@@ -38,7 +38,7 @@
 	--pos: #0f766e;
 	--neg: #be123c;
 
-	/* Consumed by js/map.js */
+	/* Consumed by js/map-canvas.js */
 	--map-water: #e4eaf1;
 	--map-line: rgba(255, 255, 255, 0.6);
 	--map-nodata: #dde2e9;
