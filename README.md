@@ -143,11 +143,31 @@ The choropleth is drawn by a purpose-built 2D canvas renderer in
 transform, and replaced MapLibre and its 784 KB of JavaScript. Geography comes
 from the boundary polygons and a collision-managed place label layer rather
 than third-party tiles, which avoids their cost and usage restrictions. The
-MapLibre files are still in `web/vendor/` but are not loaded.
+MapLibre build, its stylesheet, its glyph tiles and the renderer that used them
+have all been deleted - nothing loaded them, and they were still being deployed.
+Git history has them if the comparison is ever wanted again.
 
 Light and dark themes follow the visitor's browser setting, with every colour,
 including the map ramp and the chart, defined as a CSS custom property in
 `web/css/style.css`.
+
+## Licence
+
+The code is published to be read, not to be reused. It is under the
+[PolyForm Strict License 1.0.0](LICENSE), which permits reading, study and
+private noncommercial use, and does not permit modifying it, redistributing it
+or running it commercially.
+
+That is a deliberate choice rather than an oversight. An open source licence,
+including a copyleft one, grants the right to stand this site up again
+somewhere else, and the site rather than the source is the thing being built
+here. Anyone is welcome to read how it works.
+
+What the licence does not cover is set out in [NOTICE](NOTICE): the data, which
+is Open Government Licence and was free to everyone already; the name, domain
+and visual design, which are not licensed at all; and the third-party
+components in `web/vendor/`, which keep the more permissive licences they
+arrived under.
 
 ## Data sources and licensing
 
