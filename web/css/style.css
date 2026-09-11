@@ -1219,12 +1219,26 @@ select:focus-visible {
 .pg-table tbody th {
 	font-weight: 600;
 	color: var(--text);
-	display: flex;
-	flex-direction: column;
-	gap: 1px;
+	white-space: nowrap;
 }
 
-.pg-from { font-size: 11.5px; font-weight: 400; color: var(--text-subtle); }
+.pg-from {
+	display: block;
+	margin-top: 3px;
+	font-size: 11px;
+	font-weight: 400;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--text-subtle);
+	white-space: nowrap;
+}
+
+/* Periods across the columns. The measure column is left to the width of its
+   own text so the five period columns share what is left evenly, and the
+   headings align right to sit over the figures rather than beside them. */
+.pg-wide thead th { text-align: right; vertical-align: bottom; }
+.pg-wide thead th:first-child { width: 1%; }
+.pg-wide tbody th { text-align: left; }
 
 .pg-num {
 	text-align: right !important;

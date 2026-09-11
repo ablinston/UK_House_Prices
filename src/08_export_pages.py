@@ -33,9 +33,10 @@ SITE = 'https://realhouseprices.uk'
 # did not describe: only three of the forty-three peak that month in real terms,
 # and the UK itself peaks in 2021. Each area's own peak is computed below.
 HORIZONS = [('1 year', 12),
+            ('3 years', 36),
             ('5 years', 60),
             ('10 years', 120),
-            ('Since 1995', None)]
+            (None, None)]          # open ended: back to this series' own start
 
 # The window every area is ranked and compared over. It has to be the same one
 # for everybody or the ranking compares different decades with each other.
@@ -142,6 +143,19 @@ def change(series, area, frm, to):
 
 def tier_of(code):
     return TIERS.get(code[:3], 'area')
+
+
+def first_observation(area, t):
+    """The first month this area has a price for this housing type.
+
+    Not always the start of the axis. Northern Ireland, Scotland and the UK
+    itself publish an overall index back to 1995 but no breakdown by property
+    type until 2004 or 2005. Reading the open-ended row off month zero anyway
+    printed 'Since 1995, from January 1995' above a pair of dashes, which reads
+    as a page that is broken rather than as data nobody ever collected.
+    """
+    observed = np.flatnonzero(np.isfinite(nominal[t][area]))
+    return int(observed[0]) if observed.size else None
 
 
 def type_label(t):
@@ -378,15 +392,17 @@ def sparkline(area, t = 0):
 
 
 def horizon_rows(area, t = 0):
+    start = first_observation(area, t)
     rows = []
     for label, back in HORIZONS:
         if back is None:
-            frm = 0
-        elif isinstance(back, str):
-            frm = month_index(back)
+            if start is None or start >= LATEST - 12:
+                continue          # nothing to say beyond the windows above
+            frm = start
+            label = f'Since {month_labels[frm][:4]}'
         else:
             frm = LATEST - back
-        if frm < 0:
+        if frm < 0 or (start is not None and frm < start):
             continue
         rows.append((label, pretty_month(month_labels[frm]),
                      change(real[t], area, frm, LATEST),
@@ -519,24 +535,41 @@ def area_page(area):
                 f'{"house" if t == 0 else type_label(t).lower()} price in '
                 f'{esc(located(area))}{"," if "," in located(area) else ""} is '
                 f'{money(nominal[t][area][LATEST])} as of {esc(LATEST_LABEL)}. '
-                f'This is what homes have cost there since {FIRST_LABEL}, in '
-                f"today's money rather than in the cash prices of the day.</p>"
+                f'This is what they have cost there since '
+                f'{esc(pretty_month(month_labels[first_observation(area, t) or 0]))}, '
+                f"in today's money rather than in the cash prices of the day.</p>"
                 f'<p class="pg-verdict">{verdict(area, t)}</p>')
 
+    # Periods across the columns rather than down the rows, so the two things a
+    # reader is here to compare - real against cash - sit one above the other
+    # for every window at once instead of being read in pairs down a list.
     def horizons(t):
-        rows = ''.join(
-            f'<tr><th scope="row">{esc(label)}'
+        spans = horizon_rows(area, t)
+        if not spans:
+            return ('<p class="pg-note">No price history for '
+                    f'{esc(type_label(t).lower())} homes in {esc(name)}.</p>')
+
+        head_cells = ''.join(
+            f'<th scope="col">{esc(label)}'
             f'<span class="pg-from">from {esc(frm)}</span></th>'
+            for label, frm, _, _ in spans)
+
+        real_cells = ''.join(
             f'<td class="pg-num {"pg-down" if r < 0 else "pg-up"}">{pct(r)}</td>'
-            f'<td class="pg-num pg-muted">{pct(n)}</td></tr>'
-            for label, frm, r, n in horizon_rows(area, t))
-        return (f'<div class="pg-table-wrap"><table class="pg-table">'
+            for _, _, r, _ in spans)
+
+        cash_cells = ''.join(f'<td class="pg-num pg-muted">{pct(n)}</td>'
+                             for _, _, _, n in spans)
+
+        return (f'<div class="pg-table-wrap"><table class="pg-table pg-wide">'
                 f'<caption class="visually-hidden">Change in average '
                 f'{esc(type_label(t).lower())} price in {esc(name)}</caption>'
-                f'<thead><tr><th scope="col">Period</th>'
-                f'<th scope="col">In real terms</th>'
-                f'<th scope="col">In cash terms</th></tr></thead>'
-                f'<tbody>{rows}</tbody></table></div>')
+                f'<thead><tr><th scope="col"><span class="visually-hidden">'
+                f'Measure</span></th>{head_cells}</tr></thead>'
+                f'<tbody>'
+                f'<tr><th scope="row">In real terms</th>{real_cells}</tr>'
+                f'<tr><th scope="row">In cash terms</th>{cash_cells}</tr>'
+                f'</tbody></table></div>')
 
     def context(t):
         rank = ranking(area, t)

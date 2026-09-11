@@ -397,3 +397,49 @@ def test_the_hidden_blocks_are_actually_hidden():
     css = (ROOT / 'web' / 'css' / 'style.css').read_text(encoding = 'utf-8')
     assert re.search(r'\[hidden\]\s*{[^}]*display:\s*none\s*!important', css), (
         'style.css has no [hidden] { display: none !important } rule')
+
+
+def test_no_page_claims_history_it_does_not_have(pages, meta, prices):
+    """The open-ended column has to start where the series actually starts.
+
+    Northern Ireland, Scotland and the UK publish an overall index back to 1995
+    but no breakdown by property type until 2004 or 2005. Reading that column
+    off the start of the axis regardless produced 'Since 1995, from January
+    1995' above two dashes - a page that looks broken rather than one saying
+    the data was never collected.
+    """
+    by_slug = {}
+    for i, area in enumerate(meta['areas']):
+        slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
+        by_slug.setdefault(slug, i)
+
+    start_year, start_month = (int(v) for v in meta['months']['start'].split('-'))
+
+    checked, wrong, blank = 0, [], []
+    for slug, html in pages.items():
+        if slug not in by_slug:
+            continue
+        area = by_slug[slug]
+        for t, body in re.findall(r'data-type="(\d+)"[^>]*>(.*?)'
+                                  r'(?=<div class="pg-type"|\Z)', html, re.S):
+            t = int(t)
+            claimed = re.search(r'<th scope="col">Since (\d{4})', body)
+            if not claimed:
+                continue
+
+            observed = np.flatnonzero(np.isfinite(prices[t][area]))
+            if not observed.size:
+                continue
+            total = start_year * 12 + (start_month - 1) + int(observed[0])
+            checked += 1
+            if claimed.group(1) != str(total // 12):
+                wrong.append((slug, t, claimed.group(1), total // 12))
+
+            # A column that survived the filter has to carry figures, not dashes
+            table = re.search(r'<table class="pg-table pg-wide">.*?</table>', body, re.S)
+            if table and re.search(r'<td class="pg-num[^"]*">-</td>', table.group(0)):
+                blank.append((slug, t))
+
+    assert checked, 'no page carries an open-ended column'
+    assert not wrong, f'pages claiming history before their data starts: {wrong}'
+    assert not blank, f'pages with an empty cell in the change table: {blank[:5]}'
