@@ -225,7 +225,7 @@ body {
 /* The space above comes from the chart block's own bottom margin; the space
    below is this one's, and it has to be there - .stats-wrap opens with a rule,
    and without a gap the button sits straight on top of the line. */
-.area-page-link { margin: 0 0 18px; }
+.area-page-link { margin: 0 0 18px; text-align: center; }
 
 /* Solid rather than outlined. It is the one route from the map to an area's own
    page, and as a quiet bordered link it read as a caption and got skipped.
@@ -1308,7 +1308,7 @@ select:focus-visible {
 
 /* ----- call to action ----- */
 
-.pg-cta { margin: 30px 0 0; }
+.pg-cta { margin: 30px 0 0; text-align: center; }
 
 .pg-button {
 	display: inline-block;
