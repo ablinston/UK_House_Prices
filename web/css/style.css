@@ -28,6 +28,11 @@
 
 	--accent: #1e3a8a;
 	--accent-bright: #2563eb;
+	/* Text on a filled accent button. White is only legible on the dark navy
+	   this theme uses; the dark theme's accent is a mid blue, where white falls
+	   to 3.7:1 and the hover state to 2.5:1 - so that one flips to near-black
+	   rather than being left to fail quietly. */
+	--on-accent: #ffffff;
 	--focus-ring: rgba(37, 99, 235, 0.22);
 
 	--pos: #0f766e;
@@ -78,6 +83,7 @@
 
 		--accent: #3b82f6;
 		--accent-bright: #60a5fa;
+		--on-accent: #0a0c10;
 		--focus-ring: rgba(96, 165, 250, 0.25);
 
 		--pos: #2dd4bf;
@@ -216,22 +222,29 @@ body {
 /* The way through from the tool to the area's own page. Only rendered when that
    page exists, so it is absent for a local authority until those are generated
    rather than pointing at a URL that is not there yet. */
-.area-page-link { margin: 14px 0 0; }
+/* The space above comes from the chart block's own bottom margin; the space
+   below is this one's, and it has to be there - .stats-wrap opens with a rule,
+   and without a gap the button sits straight on top of the line. */
+.area-page-link { margin: 0 0 18px; }
 
+/* Solid rather than outlined. It is the one route from the map to an area's own
+   page, and as a quiet bordered link it read as a caption and got skipped.
+   Matches .pg-button on those pages, so the same action looks the same at both
+   ends of the journey. */
 .area-page-link a {
 	display: inline-block;
-	padding: 9px 14px;
+	padding: 10px 16px;
 	border-radius: var(--r-md);
-	background: var(--surface-sunken);
-	border: 1px solid var(--border-strong);
-	color: var(--accent-bright);
+	background: var(--accent);
+	color: var(--on-accent);
 	font-size: 13.5px;
 	font-weight: 600;
 	text-decoration: none;
+	transition: background 0.15s ease;
 }
 
 .area-page-link a::after { content: " →"; }
-.area-page-link a:hover { border-color: var(--accent-bright); }
+.area-page-link a:hover { background: var(--accent-bright); }
 .area-page-link a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ---------- Layout ---------- */
@@ -1302,7 +1315,7 @@ select:focus-visible {
 	padding: 10px 18px;
 	border-radius: var(--r-md);
 	background: var(--accent);
-	color: #fff;
+	color: var(--on-accent);
 	font-size: 14.5px;
 	font-weight: 600;
 	text-decoration: none;
