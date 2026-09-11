@@ -447,3 +447,188 @@ def test_no_page_claims_history_it_does_not_have(pages, meta, prices):
     assert checked, 'no page carries an open-ended column'
     assert not wrong, f'pages claiming history before their data starts: {wrong}'
     assert not blank, f'pages with an empty cell in the change table: {blank[:5]}'
+
+
+####################
+# What a data refresh can break
+
+
+def _month_labels(meta):
+    year, month = (int(v) for v in meta['months']['start'].split('-'))
+    names = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+             'August', 'September', 'October', 'November', 'December']
+    out = []
+    for i in range(meta['months']['count']):
+        total = year * 12 + (month - 1) + i
+        out.append(f'{names[total % 12]} {total // 12}')
+    return out
+
+
+def test_the_pages_are_as_fresh_as_the_data(pages, meta):
+    """Step 08 has to have run after step 06, and this is what says so.
+
+    The likeliest way this payload goes wrong is the most ordinary one: someone
+    regenerates web/data on its own - the README documents running step 06 by
+    itself - and the pages keep quoting last month while the map shows this
+    month. Nothing else here compares the two, and a visitor would only notice
+    by reading a date.
+    """
+    latest = _month_labels(meta)[-1]
+    stale = []
+    for slug, html in pages.items():
+        for said in set(re.findall(r'as of ([A-Z][a-z]+ \d{4})', html)):
+            if said != latest:
+                stale.append((slug or '(index)', said))
+        for said in set(re.findall(r'Figures updated ([A-Z][a-z]+ \d{4})', html)):
+            if said != latest:
+                stale.append((slug or '(index)', said))
+    assert not stale, (
+        f'pages quoting a month other than {latest} - run step 08: {stale[:5]}')
+
+
+def test_the_structured_data_parses_on_every_page(pages):
+    """A malformed block is not an error anyone sees: the browser ignores it,
+    the page looks perfect, and the breadcrumb simply never appears in a result.
+    The one way it shows up is a parser being pointed at it."""
+    broken = []
+    for slug, html in pages.items():
+        for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>',
+                                html, re.S):
+            try:
+                parsed = json.loads(block)
+            except json.JSONDecodeError as error:
+                broken.append((slug or '(index)', str(error)[:60]))
+                continue
+            if not parsed.get('itemListElement'):
+                broken.append((slug or '(index)', 'breadcrumb has no items'))
+    assert not broken, f'pages with unparseable structured data: {broken[:5]}'
+
+
+def test_no_page_leaks_a_failed_calculation(pages):
+    """NaN reaches a page as the word 'nan', not as a blank or an error.
+
+    Every figure here is a ratio of two numbers that can each be missing, and a
+    missing one is meant to be caught and turned into a dash. Where it is not,
+    the page reads 'nan%' or 'Â£None' in the middle of a sentence - which looks
+    like the whole site is broken, and is invisible to every other check.
+    """
+    smells = re.compile(r'\bnan\b|\binf\b|\bNone\b|\bundefined\b|Â£-?nan',
+                        re.IGNORECASE)
+    leaking = []
+    for slug, html in pages.items():
+        # The visible text only - class names and scripts are not prose
+        text = re.sub(r'<script.*?</script>', '', html, flags = re.S)
+        text = re.sub(r'<[^>]+>', ' ', text)
+        for hit in set(smells.findall(text)):
+            leaking.append((slug or '(index)', hit))
+    assert not leaking, f'pages showing a failed calculation: {leaking[:8]}'
+
+
+def test_the_change_table_agrees_with_the_data(pages, meta, prices):
+    """The substance of the page, recomputed.
+
+    Only the headline price was ever checked against the export. Everything a
+    reader actually compares - the real and cash change over each window - came
+    from the same helper and was taken on trust, so a fault in the deflation or
+    in the window arithmetic would leave the headline right and every figure
+    under it wrong.
+    """
+    cpi = np.array(meta['cpi'], dtype = float)
+    labels = _month_labels(meta)
+    by_slug = {}
+    for i, area in enumerate(meta['areas']):
+        slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
+        by_slug.setdefault(slug, i)
+        if area['c'] == 'K02000001':
+            by_slug[''] = i
+
+    checked, wrong = 0, []
+    for slug, html in pages.items():
+        if slug not in by_slug:
+            continue
+        area = by_slug[slug]
+        for t, body in re.findall(r'data-type="(\d+)"[^>]*>(.*?)'
+                                  r'(?=<div class="pg-type"|\Z)', html, re.S):
+            t = int(t)
+            table = re.search(r'<table class="pg-table pg-wide">(.*?)</table>',
+                              body, re.S)
+            if not table:
+                continue
+
+            froms = re.findall(r'<span class="pg-from">from ([^<]+)</span>', table.group(1))
+            rows = re.findall(r'<th scope="row">In (real|cash) terms</th>(.*?)</tr>',
+                              table.group(1), re.S)
+            if len(rows) != 2:
+                wrong.append((slug, t, 'table is not two rows'))
+                continue
+
+            cash_series = prices[t][area]
+            real_series = cash_series / (cpi / cpi[-1])
+
+            for measure, cells in rows:
+                values = re.findall(r'>([+-][\d.]+)%</td>', cells)
+                if len(values) != len(froms):
+                    wrong.append((slug, t, f'{measure}: {len(values)} cells for '
+                                           f'{len(froms)} columns'))
+                    continue
+                series = real_series if measure == 'real' else cash_series
+                for shown, frm in zip(values, froms):
+                    i = labels.index(frm)
+                    expected = (series[-1] / series[i] - 1) * 100
+                    checked += 1
+                    if abs(float(shown) - expected) > 0.06:
+                        wrong.append((slug, t, measure, frm, shown,
+                                      round(float(expected), 1)))
+
+    assert checked > 500, f'only {checked} cells checked - has the table changed shape?'
+    assert not wrong, f'change table cells the data disagrees with: {wrong[:5]}'
+
+
+def test_no_chart_line_escapes_its_box(pages):
+    """A scaling fault draws the line outside the viewBox, where it is simply
+    clipped - the chart still renders, still looks like a chart, and is missing
+    whichever part of the history went over the edge."""
+    escaped = []
+    for slug, html in pages.items():
+        for box, paths in re.findall(r'viewBox="0 0 (\d+ \d+)"(.*?)</svg>', html, re.S):
+            width, height = (int(v) for v in box.split())
+            for d in re.findall(r'class="pg-(?:real|nominal)" d="([^"]*)"', paths):
+                for point in re.findall(r'(-?[\d.]+),(-?[\d.]+)', d):
+                    x, y = float(point[0]), float(point[1])
+                    if not (0 <= x <= width and 0 <= y <= height):
+                        escaped.append((slug or '(index)', round(x), round(y)))
+                        break
+    assert not escaped, f'chart lines drawn outside the viewBox: {escaped[:5]}'
+
+
+def test_every_page_has_its_own_title_and_description(pages):
+    """Two pages sharing a title is two pages competing for one result, and
+    Google picking whichever it prefers - usually not the one you wanted."""
+    titles, descriptions = {}, {}
+    for slug, html in pages.items():
+        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+        desc = re.search(r'<meta name="description" content="(.*?)">', html, re.S).group(1)
+        titles.setdefault(title, []).append(slug or '(index)')
+        descriptions.setdefault(' '.join(desc.split()), []).append(slug or '(index)')
+
+    shared_titles = {k: v for k, v in titles.items() if len(v) > 1}
+    shared_descs = {k: v for k, v in descriptions.items() if len(v) > 1}
+    assert not shared_titles, f'pages sharing a title: {shared_titles}'
+    assert not shared_descs, f'pages sharing a description: {shared_descs}'
+
+
+def test_no_page_is_left_over_from_a_renamed_area(pages, meta):
+    """Step 08 clears these, and this is what notices if it stops.
+
+    A reorganisation renames areas, and nothing would overwrite the old page -
+    it would sit in the tree and deploy for ever, frozen at the figures of the
+    month the name changed, with no way of ever being corrected.
+    """
+    expected = set()
+    for area in meta['areas'][meta['geoAreas']:]:
+        if area['c'] == 'K02000001':
+            continue
+        expected.add(re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-'))
+
+    orphans = sorted(slug for slug in pages if slug and slug not in expected)
+    assert not orphans, f'pages for areas that are no longer in the data: {orphans}'

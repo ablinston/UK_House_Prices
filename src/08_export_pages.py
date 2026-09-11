@@ -771,6 +771,24 @@ write(f'{OUT_DIR}/index.html', index_page())
 for i in page_areas:
     write(f'{OUT_DIR}/{slugs[i]}/index.html', area_page(i))
 
+# A boundary reorganisation renames areas, and a renamed area leaves its old
+# page sitting in the tree. Nothing here would overwrite it, so it would be
+# committed and deployed for ever, frozen at whatever the figures were the month
+# the name changed - a page that is wrong and has no way of ever being corrected.
+wanted = {slugs[i] for i in page_areas}
+stale = sorted(name for name in os.listdir(OUT_DIR)
+               if os.path.isdir(f'{OUT_DIR}/{name}') and name not in wanted)
+
+for name in stale:
+    for root, dirs, files in os.walk(f'{OUT_DIR}/{name}', topdown = False):
+        for f in files:
+            os.remove(os.path.join(root, f))
+        os.rmdir(root)
+
+if stale:
+    print(f'  removed {len(stale)} page(s) for areas that no longer exist: '
+          + ', '.join(stale[:5]))
+
 
 ####################
 # Tell the app which areas have a page
