@@ -3,9 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Real UK House Prices</title>
-<meta name="description" content="Interactive map of average house price changes across UK local authorities, in nominal and inflation-adjusted terms, using Land Registry and ONS data.">
+<title>UK House Prices Adjusted for Inflation | Real House Prices</title>
+<link rel="canonical" href="https://realhouseprices.uk/">
+<meta name="description" content="How much have house prices really changed? An interactive map of every UK local authority since 1995, in real terms and in cash terms, from Land Registry data.">
 <meta name="color-scheme" content="light dark">
+
+<!-- Search wants the phrase people actually type, which is "adjusted for
+     inflation" rather than the brand - hence the title leading on it and the
+     brand trailing. Nothing here carries a figure: the data refreshes itself
+     monthly and a hardcoded number would quietly become a lie the first time
+     it did, on the one part of the page nobody thinks to check. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://realhouseprices.uk/">
+<meta property="og:site_name" content="Real House Prices">
+<meta property="og:locale" content="en_GB">
+<meta property="og:title" content="UK house prices adjusted for inflation, area by area">
+<meta property="og:description" content="See how much of the rise in house prices in your area was real, and how much of it was only inflation.">
+<meta property="og:image" content="https://realhouseprices.uk/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 
 <link rel="preload" href="vendor/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
 
@@ -50,6 +67,16 @@
     <div class="topbar-meta" id="topbar-meta"></div>
   </div>
 </header>
+
+<!-- The page carried no h1 at all: its three headings were 'Explore', a hidden
+     'Map of price changes' and 'Area detail', none of which says what the site
+     is. A crawler landing here found a fast page about nothing in particular,
+     and a screen reader found no top level to start from. Two lines, so it
+     costs the map as little height as possible on a phone. -->
+<div class="masthead">
+  <h1>UK house prices, adjusted for inflation</h1>
+  <p class="masthead-sub">What every local authority in Britain is really worth, in today's money, from 1995 onwards.</p>
+</div>
 
 <main class="layout">
 
@@ -166,6 +193,72 @@
 
 </main>
 
+<!-- Search engines had roughly forty words of prose to go on, most of it the
+     licence notice. This is the body copy that makes the page rankable for the
+     language people actually use - 'adjusted for inflation', 'real terms',
+     'nominal'. It sits below the map so it never pushes the tool itself down
+     the screen, and it deliberately carries no figures: the pipeline refreshes
+     the data every month, and a number written into the HTML would be stale by
+     the following one with nothing to catch it. -->
+<section class="about" aria-labelledby="about-heading">
+  <div class="about-inner">
+
+    <h2 id="about-heading">House prices in real terms</h2>
+    <p>
+      Headline house prices are nominal - they are the cash figures, and they
+      take no account of money itself losing value along the way. A price that
+      has doubled has not doubled in worth if everything else has doubled
+      alongside it. Real prices strip that out, so that a pound in 1995 and a
+      pound today stand for the same amount of buying power, and across much of
+      the UK the gap between the two measures is the whole story.
+    </p>
+    <p>
+      This map shows the change in average house prices for every local
+      authority in England, Scotland, Wales and Northern Ireland, drawn from the
+      UK House Price Index. Choose any two dates, pick a property type, and
+      switch between real and nominal to see how much of a rise was genuine and
+      how much of it was only inflation.
+    </p>
+
+    <h2 id="faq-heading">Common questions</h2>
+    <dl class="faq" aria-labelledby="faq-heading">
+
+      <dt>What are real house prices?</dt>
+      <dd>
+        Real house prices are prices adjusted for inflation, so that figures
+        from different years can be compared directly. Nominal, or cash, prices
+        are the unadjusted numbers quoted in the news: they rise partly because
+        houses have become more valuable, and partly because money has become
+        less so.
+      </dd>
+
+      <dt>Have UK house prices fallen in real terms?</dt>
+      <dd>
+        Across much of the country, yes, over any period reaching back to the
+        2007 peak - even where the cash price has risen over the same years. Set
+        the date range on the map and switch the price basis to real to see the
+        answer for a particular area.
+      </dd>
+
+      <dt>How are these prices adjusted for inflation?</dt>
+      <dd>
+        Every monthly figure is deflated by the ONS Consumer Prices Index and
+        expressed in the money of the most recent month in the data, so any two
+        points on the chart are directly comparable.
+      </dd>
+
+      <dt>Where does the data come from?</dt>
+      <dd>
+        The UK House Price Index, produced by HM Land Registry, the ONS,
+        Registers of Scotland and Land &amp; Property Services Northern Ireland,
+        which is published monthly. The inflation series is ONS Consumer Prices
+        Index, all items.
+      </dd>
+
+    </dl>
+  </div>
+</section>
+
 <footer class="site-footer">
   <div class="footer-inner">
     <p class="footer-note" id="basis-note"></p>
@@ -190,6 +283,75 @@
      js/map-canvas.js. -->
 <script src="vendor/uPlot.iife.min.js" defer></script>
 <script type="module" src="js/main.js"></script>
+
+<!-- How a search engine tells a data source from a blog. Last in the body
+     because it is inert markup that no parser is waiting on, and the answers
+     below are the same sentences as the visible ones above - Google checks, and
+     drops the rich result when the two disagree. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "name": "Real House Prices",
+      "url": "https://realhouseprices.uk/",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "GBP" },
+      "description": "Interactive map of UK house prices by local authority, adjusted for inflation using ONS CPI."
+    },
+    {
+      "@type": "Dataset",
+      "name": "UK house prices in real terms by local authority",
+      "description": "Monthly average house prices for UK local authority districts and for the national and regional series, from January 1995 onwards, in nominal and CPI-deflated terms.",
+      "temporalCoverage": "1995-01/..",
+      "spatialCoverage": "United Kingdom",
+      "license": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+      "creator": { "@type": "Organization", "name": "Real House Prices" },
+      "isBasedOn": "https://www.gov.uk/government/collections/uk-house-price-index-reports"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What are real house prices?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Real house prices are prices adjusted for inflation, so that figures from different years can be compared directly. Nominal, or cash, prices are the unadjusted numbers quoted in the news: they rise partly because houses have become more valuable, and partly because money has become less so."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Have UK house prices fallen in real terms?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Across much of the country, yes, over any period reaching back to the 2007 peak - even where the cash price has risen over the same years. Set the date range on the map and switch the price basis to real to see the answer for a particular area."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How are these prices adjusted for inflation?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Every monthly figure is deflated by the ONS Consumer Prices Index and expressed in the money of the most recent month in the data, so any two points on the chart are directly comparable."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where does the data come from?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The UK House Price Index, produced by HM Land Registry, the ONS, Registers of Scotland and Land & Property Services Northern Ireland, which is published monthly. The inflation series is ONS Consumer Prices Index, all items."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 
 </body>
 </html>

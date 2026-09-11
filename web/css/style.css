@@ -892,6 +892,94 @@ select:focus-visible {
 .u-legend .u-marker { border-radius: 2px; }
 .u-select { background: var(--focus-ring); }
 
+/* ---------- Masthead ---------- */
+
+/* The h1 the page went without. Sized to read as a page title rather than a
+   hero — it sits directly above the map, and every pixel it takes is a pixel
+   of map pushed off a phone screen. */
+.masthead {
+	max-width: 1680px;
+	margin: 0 auto;
+	padding: 18px 20px 0;
+}
+
+.masthead h1 {
+	margin: 0;
+	font-size: 21px;
+	font-weight: 650;
+	letter-spacing: -0.021em;
+	line-height: 1.2;
+	color: var(--text);
+	text-wrap: balance;
+}
+
+.masthead-sub {
+	margin: 3px 0 0;
+	font-size: 13.5px;
+	line-height: 1.45;
+	color: var(--text-muted);
+	max-width: 62ch;
+	text-wrap: pretty;
+}
+
+@media (min-width: 1024px) {
+	.masthead h1 { font-size: 25px; }
+}
+
+/* ---------- About and questions ---------- */
+
+/* Below the map on purpose: it exists to be read by a search engine and by the
+   occasional visitor who scrolls, and neither is worth delaying the tool for. */
+.about {
+	border-top: 1px solid var(--border);
+	background: var(--surface);
+}
+
+.about-inner {
+	max-width: 680px;
+	margin: 0 auto;
+	padding: 32px 20px 36px;
+}
+
+.about h2 {
+	margin: 0 0 10px;
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+	line-height: 1.25;
+	color: var(--text);
+}
+
+.about h2 + p { margin-top: 0; }
+
+.about p {
+	margin: 0 0 14px;
+	font-size: 14.5px;
+	line-height: 1.65;
+	color: var(--text-muted);
+}
+
+.about p:last-child { margin-bottom: 0; }
+
+#faq-heading { margin-top: 30px; }
+
+.faq { margin: 0; }
+
+.faq dt {
+	margin-top: 18px;
+	font-size: 14.5px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--text);
+}
+
+.faq dd {
+	margin: 5px 0 0;
+	font-size: 14.5px;
+	line-height: 1.65;
+	color: var(--text-muted);
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {
