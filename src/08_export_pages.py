@@ -138,6 +138,25 @@ def tier_of(code):
     return TIERS.get(code[:3], 'area')
 
 
+def located(area):
+    """Where the area is, said in full.
+
+    Every English county on this site shares its name with somewhere abroad -
+    Surrey and Kent have Canadian namesakes, Essex has one in Ontario and
+    another in Vermont - and Google's own suggestions for 'house prices in
+    surrey' are split between them. Naming the country in the copy, and the UK
+    in the title, is what settles which one the page is about.
+    """
+    name = areas[area]['n']
+    tier = tier_of(areas[area]['c'])
+    if tier == 'county':
+        return f'{name}, England'
+    if tier == 'region':
+        return (f'the {name} of England' if name.endswith('Region')
+                else f'the {name} region of England')
+    return name
+
+
 ####################
 # Which areas get a page
 
@@ -391,13 +410,20 @@ def area_page(area):
     slug = slugs[area]
     path = f'/house-prices/{slug}/'
 
-    title = f'{name} House Prices Adjusted for Inflation'
-    if len(title) + 20 <= 60:
-        title += ' | Real House Prices'
+    # '{name} house prices' is the head term and goes first. 'UK' is not filler
+    # here: it is what separates this Surrey from the one in British Columbia.
+    # The long names fall back to the shorter modifier rather than being cut off
+    # mid-phrase in the result.
+    title = f'{name} House Prices, Adjusted for Inflation | UK'
+    if len(title) > 60:
+        title = f'{name} House Prices in Real Terms | UK'
 
-    description = (f'House prices in {name} adjusted for inflation. Average prices '
-                   f'and the real-terms change from {FIRST_LABEL[-4:]} to '
-                   f'{LATEST_LABEL}, from Land Registry data.')
+    # Descriptions do not rank, they win the click - so this is where the other
+    # things people actually type go: 'average house price in ...', 'last 10
+    # years', and the graph, which is a suggestion against almost every county.
+    description = (f'Average house prices in {name}: the real-terms change over '
+                   f'1, 5 and 10 years, and the full history since '
+                   f'{FIRST_LABEL[-4:]} in one graph. Land Registry data.')
 
     rows = ''.join(
         f'<tr><th scope="row">{esc(label)}<span class="pg-from">from {esc(frm)}</span></th>'
@@ -446,8 +472,10 @@ def area_page(area):
   </nav>
 
   <h1>{esc(name)} house prices, adjusted for inflation</h1>
-  <p class="pg-standfirst">What homes have cost in {esc(name)} since {FIRST_LABEL},
-     in today's money. Figures to {esc(LATEST_LABEL)}.</p>
+  <p class="pg-standfirst">The average house price in {esc(located(area))}{',' if ',' in located(area) else ''} is
+     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
+     homes have cost there since {FIRST_LABEL}, in today's money rather than in
+     the cash prices of the day.</p>
 
   <div class="pg-headline">
     <div class="pg-stat">
@@ -464,7 +492,7 @@ def area_page(area):
 
   {sparkline(area)}
 
-  <h2>How prices have changed</h2>
+  <h2>How {esc(name)} house prices have changed</h2>
   <div class="pg-table-wrap">
     <table class="pg-table">
       <caption class="visually-hidden">Change in average house price in {esc(name)}</caption>

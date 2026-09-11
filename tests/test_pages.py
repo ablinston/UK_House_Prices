@@ -30,7 +30,7 @@ SITE = 'https://realhouseprices.uk'
 # Google truncates a title around 60 characters and a description around 160.
 # Past those the tail is dropped from the result, which is only a problem when
 # the part that matters was in it - hence a ceiling rather than a target.
-MAX_TITLE = 65
+MAX_TITLE = 62
 MAX_DESCRIPTION = 165
 
 # A price that has drifted from the exported matrix means the page and the map
