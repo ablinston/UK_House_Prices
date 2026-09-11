@@ -23,17 +23,23 @@ print('Step 08: Export area pages')
 OUT_DIR = 'web/house-prices'
 SITE = 'https://realhouseprices.uk'
 
-# The peak the whole real-terms story hangs off. Nominal prices passed it years
-# ago nearly everywhere; real prices have not, in most of the country.
-PEAK = '2007-09'
-
 # Horizons shown in the change table, as (label, months back). 'None' means the
 # area's own first observation, which is January 1995 for everywhere here.
+#
+# These are the windows people actually search on - '[county] house prices last
+# 10 years' is a live suggestion, '[county] house prices since 2007' returns no
+# suggestions at all. An earlier version of this file quoted September 2007 as
+# 'the peak' on every page, which was a national figure borrowed for areas it
+# did not describe: only three of the forty-three peak that month in real terms,
+# and the UK itself peaks in 2021. Each area's own peak is computed below.
 HORIZONS = [('1 year', 12),
             ('5 years', 60),
             ('10 years', 120),
-            ('Since the 2007 peak', PEAK),
             ('Since 1995', None)]
+
+# The window every area is ranked and compared over. It has to be the same one
+# for everybody or the ranking compares different decades with each other.
+COMMON_WINDOW = 120
 
 # Which tier a series belongs to, read off the ONS code. Used for the heading,
 # the directory grouping, and for ranking an area against its own kind rather
@@ -136,6 +142,25 @@ def change(series, area, frm, to):
 
 def tier_of(code):
     return TIERS.get(code[:3], 'area')
+
+
+def real_peak(area):
+    """The month this area's real prices were highest, and how far below it
+    they are now.
+
+    Worth saying per area rather than per country: 'when did house prices peak'
+    is a question people ask, and the honest answer is different in Surrey
+    (2016) from the South East (2021) from the North East (2007). Nobody else
+    publishes it area by area, which is most of why it is here.
+    """
+    series = real[0][area]
+    if np.all(np.isnan(series)):
+        return None
+    at = int(np.nanargmax(series))
+    latest = series[LATEST]
+    if not np.isfinite(latest) or not np.isfinite(series[at]) or series[at] == 0:
+        return None
+    return at, (latest / series[at] - 1) * 100
 
 
 def located(area):
@@ -364,35 +389,53 @@ def horizon_rows(area):
 
 
 def verdict(area):
-    """One sentence saying what the numbers mean, so the page states something
+    """A sentence saying what the numbers mean, so the page states something
     rather than only displaying something. Assembled from the figures, so it
     restates itself on every refresh instead of going stale."""
     name = areas[area]['n']
-    peak = month_index(PEAK)
-    r = change(real[0], area, peak, LATEST)
-    n = change(nominal[0], area, peak, LATEST)
+    window = LATEST - COMMON_WINDOW
+    r = change(real[0], area, window, LATEST)
+    n = change(nominal[0], area, window, LATEST)
+    years = COMMON_WINDOW // 12
 
     if not np.isfinite(r) or not np.isfinite(n):
         return f'{esc(name)} has a full monthly price history from {FIRST_LABEL}.'
 
     if r < 0:
-        return (f'The average home in {esc(name)} costs <b>{abs(r):.1f}% less</b> '
-                f'in real terms than at the {pretty_month(PEAK)} peak, even though '
-                f'the cash price is <b>{n:.1f}% higher</b>.')
-    return (f'The average home in {esc(name)} is worth <b>{r:.1f}% more</b> in real '
-            f'terms than at the {pretty_month(PEAK)} peak, on a cash price '
-            f'<b>{n:.1f}% higher</b>.')
+        opening = (f'Over the last {years} years the average home in {esc(name)} has '
+                   f'lost <b>{abs(r):.1f}%</b> of its value in real terms, even '
+                   f'though the cash price is <b>{n:.1f}% higher</b>.')
+    else:
+        opening = (f'Over the last {years} years the average home in {esc(name)} has '
+                   f'gained <b>{r:.1f}%</b> in real terms, on a cash price '
+                   f'<b>{n:.1f}% higher</b>.')
+
+    peak = real_peak(area)
+    if not peak:
+        return opening
+
+    at, gap = peak
+    if at >= LATEST - 2:
+        return opening + (f' Prices there have never been higher in real terms '
+                          f'than they are now.')
+    return opening + (f' Adjusted for inflation, prices in {esc(name)} peaked in '
+                      f'<b>{pretty_month(month_labels[at])}</b> and are '
+                      f'<b>{abs(gap):.1f}% below</b> that today.')
 
 
 def ranking(area):
-    """Where this area sits among its own kind since the 2007 peak."""
+    """Where this area sits among its own kind over the common window.
+
+    Ranking on each area's own peak would compare 2016 with 2022 and call the
+    result an ordering, so this uses the same span of months for everybody.
+    """
     tier = tier_of(areas[area]['c'])
     peers = [i for i in page_areas if tier_of(areas[i]['c']) == tier]
     if len(peers) < 3:
         return None
 
-    peak = month_index(PEAK)
-    scored = [(change(real[0], i, peak, LATEST), i) for i in peers]
+    window = LATEST - COMMON_WINDOW
+    scored = [(change(real[0], i, window, LATEST), i) for i in peers]
     scored = [(v, i) for v, i in scored if np.isfinite(v)]
     scored.sort(reverse = True)
     order = [i for _, i in scored]
@@ -431,12 +474,13 @@ def area_page(area):
         f'<td class="pg-num pg-muted">{pct(n)}</td></tr>'
         for label, frm, r, n in horizon_rows(area))
 
-    peak = month_index(PEAK)
+    window = LATEST - COMMON_WINDOW
+    years = COMMON_WINDOW // 12
     type_rows = ''.join(
         f'<tr><th scope="row">{esc("Semi-detached" if t == "SemiDetached" else t)}</th>'
         f'<td class="pg-num">{money(nominal[i][area][LATEST])}</td>'
-        f'<td class="pg-num {"pg-down" if change(real[i], area, peak, LATEST) < 0 else "pg-up"}">'
-        f'{pct(change(real[i], area, peak, LATEST))}</td></tr>'
+        f'<td class="pg-num {"pg-down" if change(real[i], area, window, LATEST) < 0 else "pg-up"}">'
+        f'{pct(change(real[i], area, window, LATEST))}</td></tr>'
         for i, t in enumerate(types))
 
     rank = ranking(area)
@@ -445,11 +489,19 @@ def area_page(area):
         position, total, tier_name = rank
         rank_line = (f'<p class="pg-rank">Ranked <b>{position} of {total}</b> '
                      f'{esc(tier_name)}{"" if tier_name.endswith("y") else "s"} '
-                     f'by real-terms change since the {pretty_month(PEAK)} peak, '
+                     f'by real-terms change over the last {years} years, '
                      f'best first.</p>').replace('countys', 'counties')
 
-    uk_real = change(real[0], uk_area, peak, LATEST)
-    own_real = change(real[0], area, peak, LATEST)
+    peak = real_peak(area)
+    peak_tile = ''
+    if peak and peak[0] < LATEST - 2:
+        peak_tile = f'''<div class="pg-stat">
+      <span class="pg-stat-label">Below its {esc(pretty_month(month_labels[peak[0]]))} peak</span>
+      <span class="pg-stat-value pg-down">{pct(peak[1])}</span>
+    </div>'''
+
+    uk_real = change(real[0], uk_area, window, LATEST)
+    own_real = change(real[0], area, window, LATEST)
     versus = ''
     if np.isfinite(uk_real) and np.isfinite(own_real):
         gap = own_real - uk_real
@@ -472,10 +524,6 @@ def area_page(area):
   </nav>
 
   <h1>{esc(name)} house prices, adjusted for inflation</h1>
-  <p class="pg-standfirst">The average house price in {esc(located(area))}{',' if ',' in located(area) else ''} is
-     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
-     homes have cost there since {FIRST_LABEL}, in today's money rather than in
-     the cash prices of the day.</p>
 
   <div class="pg-headline">
     <div class="pg-stat">
@@ -483,14 +531,20 @@ def area_page(area):
       <span class="pg-stat-value">{money(nominal[0][area][LATEST])}</span>
     </div>
     <div class="pg-stat">
-      <span class="pg-stat-label">Real change since the peak</span>
+      <span class="pg-stat-label">Real change, {years} years</span>
       <span class="pg-stat-value {"pg-down" if own_real < 0 else "pg-up"}">{pct(own_real)}</span>
     </div>
+    {peak_tile}
   </div>
 
-  <p class="pg-verdict">{verdict(area)}</p>
-
   {sparkline(area)}
+
+  <p class="pg-standfirst">The average house price in {esc(located(area))}{',' if ',' in located(area) else ''} is
+     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
+     homes have cost there since {FIRST_LABEL}, in today's money rather than in
+     the cash prices of the day.</p>
+
+  <p class="pg-verdict">{verdict(area)}</p>
 
   <h2>How {esc(name)} house prices have changed</h2>
   <div class="pg-table-wrap">
@@ -507,7 +561,7 @@ def area_page(area):
     <table class="pg-table">
       <caption class="visually-hidden">Average price and real-terms change by property type</caption>
       <thead><tr><th scope="col">Type</th><th scope="col">Average price</th>
-        <th scope="col">Real change since 2007</th></tr></thead>
+        <th scope="col">Real change, {years} years</th></tr></thead>
       <tbody>{type_rows}</tbody>
     </table>
   </div>
@@ -531,8 +585,17 @@ def area_page(area):
 
 def index_page():
     area = uk_area
-    peak = month_index(PEAK)
-    own_real = change(real[0], area, peak, LATEST)
+    window = LATEST - COMMON_WINDOW
+    years = COMMON_WINDOW // 12
+    own_real = change(real[0], area, window, LATEST)
+
+    peak = real_peak(area)
+    peak_tile = ''
+    if peak and peak[0] < LATEST - 2:
+        peak_tile = f'''<div class="pg-stat">
+      <span class="pg-stat-label">Below its {esc(pretty_month(month_labels[peak[0]]))} peak</span>
+      <span class="pg-stat-value pg-down">{pct(peak[1])}</span>
+    </div>'''
 
     title = 'UK House Prices by Area, Adjusted for Inflation'
     description = ('House prices by county, region and country, adjusted for '
@@ -551,8 +614,8 @@ def index_page():
             continue
         items = ''.join(
             f'<li><a href="/house-prices/{slugs[i]}/">{esc(areas[i]["n"])}</a>'
-            f'<span class="pg-dir-value {"pg-down" if change(real[0], i, peak, LATEST) < 0 else "pg-up"}">'
-            f'{pct(change(real[0], i, peak, LATEST), 0)}</span></li>'
+            f'<span class="pg-dir-value {"pg-down" if change(real[0], i, window, LATEST) < 0 else "pg-up"}">'
+            f'{pct(change(real[0], i, window, LATEST), 0)}</span></li>'
             for i in sorted(members, key = lambda i: areas[i]['n']))
         directory += (f'<h2>{esc(heading)}</h2>'
                       f'<ul class="pg-directory">{items}</ul>')
@@ -565,8 +628,6 @@ def index_page():
   </nav>
 
   <h1>UK house prices by area, adjusted for inflation</h1>
-  <p class="pg-standfirst">What homes have cost across the UK since {FIRST_LABEL},
-     in today's money. Figures to {esc(LATEST_LABEL)}.</p>
 
   <div class="pg-headline">
     <div class="pg-stat">
@@ -574,14 +635,20 @@ def index_page():
       <span class="pg-stat-value">{money(nominal[0][area][LATEST])}</span>
     </div>
     <div class="pg-stat">
-      <span class="pg-stat-label">Real change since the peak</span>
+      <span class="pg-stat-label">Real change, {years} years</span>
       <span class="pg-stat-value {"pg-down" if own_real < 0 else "pg-up"}">{pct(own_real)}</span>
     </div>
+    {peak_tile}
   </div>
 
-  <p class="pg-verdict">{verdict(area)}</p>
-
   {sparkline(area)}
+
+  <p class="pg-standfirst">The average house price across the UK is
+     {money(nominal[0][area][LATEST])} as of {esc(LATEST_LABEL)}. This is what
+     homes have cost since {FIRST_LABEL}, in today's money rather than in the
+     cash prices of the day.</p>
+
+  <p class="pg-verdict">{verdict(area)}</p>
 
   <h2>How UK prices have changed</h2>
   <div class="pg-table-wrap">
@@ -594,7 +661,7 @@ def index_page():
   </div>
 
   <p class="pg-note">The percentage beside each area below is its real-terms
-     change since the {pretty_month(PEAK)} peak.</p>
+     change over the last {years} years.</p>
 
   {directory}
 

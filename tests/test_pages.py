@@ -311,3 +311,41 @@ def test_every_page_links_to_the_hub_in_its_markup(pages):
     missing = [slug or '(index)' for slug, html in pages.items()
                if 'href="/house-prices/"' not in html]
     assert not missing, f'pages with no link to the hub: {missing}'
+
+
+def test_the_peak_each_page_quotes_is_its_own(pages, meta, prices):
+    """A page that names a peak has to name the month its own series peaked.
+
+    An earlier version quoted September 2007 on every page, borrowed from the
+    national story. Only three of the forty-three peak that month in real terms
+    - Surrey peaks in 2016, the South East in 2021, Greater Manchester in 2022 -
+    so forty pages asserted something the chart directly above them contradicted.
+    Wrong on the one claim the whole site trades on, and invisible without this.
+    """
+    cpi = np.array(meta['cpi'], dtype = float)
+    start_year, start_month = (int(v) for v in meta['months']['start'].split('-'))
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+              'August', 'September', 'October', 'November', 'December']
+
+    def label(i):
+        total = start_year * 12 + (start_month - 1) + i
+        return f'{months[total % 12]} {total // 12}'
+
+    by_slug = {}
+    for i, area in enumerate(meta['areas']):
+        slug = re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-')
+        by_slug.setdefault(slug, i)
+
+    checked, wrong = 0, []
+    for slug, html in pages.items():
+        shown = re.search(r'Below its ([A-Z][a-z]+ \d{4}) peak', html)
+        if not shown or slug not in by_slug:
+            continue
+        series = prices[0][by_slug[slug]] / (cpi / cpi[-1])
+        checked += 1
+        expected = label(int(np.nanargmax(series)))
+        if shown.group(1) != expected:
+            wrong.append((slug, shown.group(1), expected))
+
+    assert checked, 'no page states a peak month - has the tile been removed?'
+    assert not wrong, f'pages naming a peak that is not their own: {wrong}'
