@@ -894,36 +894,44 @@ select:focus-visible {
 
 /* ---------- Masthead ---------- */
 
-/* The h1 the page went without. Sized to read as a page title rather than a
-   hero — it sits directly above the map, and every pixel it takes is a pixel
-   of map pushed off a phone screen. */
+/* The h1 the page went without. Pitched as a line of context rather than a
+   headline: at the weight of the panel labels it explains the tool without
+   shouting over it, and search reads the markup rather than the type size, so
+   nothing is given up by keeping it small. On a wide screen the description
+   sits beside it behind a hairline; below that it drops to its own line, where
+   a dangling divider would look like a mistake. */
 .masthead {
 	max-width: 1680px;
 	margin: 0 auto;
-	padding: 18px 20px 0;
+	padding: 15px 20px 1px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 3px 11px;
 }
 
 .masthead h1 {
 	margin: 0;
-	font-size: 21px;
-	font-weight: 650;
-	letter-spacing: -0.021em;
-	line-height: 1.2;
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: -0.012em;
+	line-height: 1.4;
 	color: var(--text);
-	text-wrap: balance;
 }
 
 .masthead-sub {
-	margin: 3px 0 0;
-	font-size: 13.5px;
-	line-height: 1.45;
-	color: var(--text-muted);
-	max-width: 62ch;
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: var(--text-subtle);
 	text-wrap: pretty;
 }
 
-@media (min-width: 1024px) {
-	.masthead h1 { font-size: 25px; }
+@media (min-width: 860px) {
+	.masthead-sub {
+		padding-left: 11px;
+		border-left: 1px solid var(--border-strong);
+	}
 }
 
 /* ---------- About and questions ---------- */
@@ -943,7 +951,7 @@ select:focus-visible {
 
 .about h2 {
 	margin: 0 0 10px;
-	font-size: 17px;
+	font-size: 15.5px;
 	font-weight: 650;
 	letter-spacing: -0.015em;
 	line-height: 1.25;
