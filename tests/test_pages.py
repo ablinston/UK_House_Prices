@@ -632,3 +632,29 @@ def test_no_page_is_left_over_from_a_renamed_area(pages, meta):
 
     orphans = sorted(slug for slug in pages if slug and slug not in expected)
     assert not orphans, f'pages for areas that are no longer in the data: {orphans}'
+
+
+def test_the_page_says_counties_not_county(pages):
+    """Plurals agree with the number beside them.
+
+    'Other county' and 'Ranked 27 of 29 county' went out on every county and
+    country page, in two places each, because the rule had been written as 'a
+    word ending in y takes no suffix'. It is visible, it is on a third of the
+    site, and it sits exactly where the page is claiming to be authoritative.
+    """
+    wrong = []
+    for slug, html in pages.items():
+        heading = re.search(r'<h2>Other ([a-z]+)</h2>', html)
+        siblings = len(re.findall(r'<ul class="pg-siblings">(.*?)</ul>', html, re.S))
+        if heading and siblings:
+            listed = len(re.findall(r'<li><a href="/house-prices/',
+                                    re.search(r'<ul class="pg-siblings">(.*?)</ul>',
+                                              html, re.S).group(1)))
+            if listed > 1 and not heading.group(1).endswith('s'):
+                wrong.append((slug, f'"Other {heading.group(1)}" for {listed}'))
+
+        rank = re.search(r'Ranked <b>\d+ of (\d+)</b> ([a-z]+)', html)
+        if rank and int(rank.group(1)) > 1 and not rank.group(2).endswith('s'):
+            wrong.append((slug, f'"{rank.group(1)} {rank.group(2)}"'))
+
+    assert not wrong, f'pages with a singular where a plural belongs: {wrong[:6]}'

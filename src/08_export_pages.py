@@ -158,6 +158,13 @@ def first_observation(area, t):
     return int(observed[0]) if observed.size else None
 
 
+def plural(word, count = 2):
+    """'county' to 'counties', 'region' to 'regions'."""
+    if count == 1:
+        return word
+    return word[:-1] + 'ies' if word.endswith('y') else word + 's'
+
+
 def type_label(t):
     """'SemiDetached' is how the Land Registry columns are spelled, and is not
     how anyone says it."""
@@ -551,6 +558,9 @@ def tiles(area, t):
 
 def prose(area, t, where = None):
     start = first_observation(area, t)
+    if start is None or not np.isfinite(nominal[t][area][LATEST]):
+        return (f'<p class="pg-standfirst">No {esc(type_label(t).lower())} price '
+                f'series is published for {esc(areas[area]["n"])}.</p>')
     return (f'<p class="pg-standfirst">The average '
             f'{"house" if t == 0 else type_label(t).lower()} price '
             f'{where or ("in " + esc(located(area)) + ("," if "," in located(area) else ""))} is '
@@ -623,9 +633,8 @@ def area_page(area):
         if rank:
             position, total, tier_name = rank
             line = (f'<p class="pg-rank">Ranked <b>{position} of {total}</b> '
-                    f'{esc(tier_name)}{"" if tier_name.endswith("y") else "s"} '
-                    f'by real-terms change over the last {years} years, '
-                    f'best first.</p>').replace('countys', 'counties')
+                    f'{esc(plural(tier_name, total))} by real-terms change over '
+                    f'the last {years} years, best first.</p>')
 
         uk = change(real[t], uk_area, window, LATEST)
         own = change(real[t], area, window, LATEST)
@@ -690,14 +699,14 @@ def area_page(area):
   {type_blocks(area, context)}
 
   <p class="pg-cta">
-    <a class="pg-button" href="/?area={esc(areas[area]['c'])}">See {esc(name)} on the map</a>
+    <a class="pg-button" href="/?area={esc(areas[area]['c'])}">Compare {esc(name)} with every local authority</a>
   </p>
 
-  <h2>Other {esc(tier)}{"" if tier.endswith('y') else "s"}</h2>
+  <h2>Other {esc(plural(tier, len(siblings)))}</h2>
   <ul class="pg-siblings">{sibling_links}</ul>
 </main>
 {type_script()}
-'''.replace('Other countys', 'Other counties') + footer()
+''' + footer()
 
 
 ####################
