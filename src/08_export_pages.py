@@ -233,6 +233,9 @@ def head(title, description, path, heading):
         <span class="brand-sub">Local authority price changes</span>
       </span>
     </a>
+    <div class="topbar-right">
+      <nav class="topbar-nav"><a href="/house-prices/">House prices by area</a></nav>
+    </div>
   </div>
 </header>
 '''
@@ -589,6 +592,23 @@ for i in page_areas:
 
 
 ####################
+# Tell the app which areas have a page
+
+# The map offers a link through to an area's page, and it reads the list from
+# here rather than working the URL out from the name. Two slug rules that have
+# to agree - one in Python, one in JavaScript - would agree right up until a
+# name arrived with an apostrophe in it, and then the link would 404 silently
+# for that one area. This way the app links to a page when the page exists and
+# says nothing when it does not, and the local authority pages will start
+# working the day they are generated without a line of JavaScript changing.
+pages = {areas[i]['c']: f'/house-prices/{slugs[i]}/' for i in page_areas}
+pages[areas[uk_area]['c']] = '/house-prices/'
+
+with open('web/data/pages.json', 'w', encoding = 'utf-8') as f:
+    j.dump(pages, f, separators = (',', ':'), sort_keys = True)
+
+
+####################
 # Sitemap
 
 # Owned by this step rather than by step 06, because this is the step that knows
@@ -619,3 +639,4 @@ total = sum(os.path.getsize(os.path.join(root, name))
 
 print(f'  wrote {len(page_areas) + 1} pages to {OUT_DIR} ({total / 1024:.0f} KB)')
 print(f'  wrote web/sitemap.xml ({len(urls)} URLs)')
+print(f'  wrote web/data/pages.json ({len(pages)} areas)')

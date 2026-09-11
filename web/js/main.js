@@ -39,6 +39,9 @@ const el = {
 	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
+	areaPageLink: document.getElementById('area-page-link'),
+	areaPageHref: document.getElementById('area-page-href'),
+	areaPageName: document.getElementById('area-page-name'),
 	topbarMeta: document.getElementById('topbar-meta'),
 	basisNote: document.getElementById('basis-note'),
 };
@@ -230,10 +233,30 @@ function render() {
 	});
 }
 
+/* Which areas have a page of their own, as written by step 08. Read rather
+ * than derived: working the URL out from the name would mean a slug rule here
+ * and an identical one in Python, agreeing until the day a name arrived with an
+ * apostrophe in it and the link quietly 404'd for that one area. Absent until
+ * the fetch lands, and absent for good if it fails - in which case the button
+ * simply never appears, which costs a link and breaks nothing. */
+let areaPages = null;
+
+function renderAreaPageLink() {
+	if (!meta || !areaPages) return;
+
+	const page = areaPages[meta.areas[state.area].c];
+	el.areaPageLink.hidden = !page;
+	if (!page) return;
+
+	el.areaPageHref.href = page;
+	el.areaPageName.textContent = meta.areas[state.area].n;
+}
+
 function renderAreaDetail() {
 	renderHeadline();
 	renderStats();
 	renderChart();
+	renderAreaPageLink();
 }
 
 /* The background housing types resolve independently, so their redraws are
@@ -490,6 +513,16 @@ async function start() {
 
 	if ('requestIdleCallback' in window) requestIdleCallback(loadRemaining, { timeout: 2500 });
 	else setTimeout(loadRemaining, 500);
+
+	// Nothing on screen waits on this, and a failure costs one link rather than
+	// the page, so it is fetched last and its rejection is swallowed.
+	fetch('data/pages.json')
+		.then((response) => (response.ok ? response.json() : null))
+		.then((loaded) => {
+			areaPages = loaded;
+			renderAreaPageLink();
+		})
+		.catch(() => {});
 }
 
 start().catch((error) => {

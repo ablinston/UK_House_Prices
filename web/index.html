@@ -64,7 +64,15 @@
         <span class="brand-sub">Local authority price changes</span>
       </span>
     </div>
-    <div class="topbar-meta" id="topbar-meta"></div>
+    <div class="topbar-right">
+      <!-- Static, and in the markup of every page on the site. The button in
+           the area panel is built by JavaScript from the selected area, which
+           makes it a fine thing for a reader and an unreliable one for a
+           crawler - this is what actually carries authority through to the
+           area pages. -->
+      <nav class="topbar-nav"><a href="/house-prices/">House prices by area</a></nav>
+      <div class="topbar-meta" id="topbar-meta"></div>
+    </div>
   </div>
 </header>
 
@@ -181,6 +189,10 @@
       <div id="chart"></div>
     </div>
 
+    <p class="area-page-link" id="area-page-link" hidden>
+      <a id="area-page-href" href="/house-prices/">See the full history for <span id="area-page-name"></span></a>
+    </p>
+
     <div class="stats-wrap">
       <table class="stats" id="stats">
         <caption class="visually-hidden">Price change by housing type</caption>
@@ -219,6 +231,12 @@
       UK House Price Index. Choose any two dates, pick a property type, and
       switch between real and nominal to see how much of a rise was genuine and
       how much of it was only inflation.
+    </p>
+    <p>
+      There is also a page for every
+      <a href="/house-prices/">county, region and country</a>, with the full
+      history, the change over one, five and ten years, and a breakdown by
+      property type.
     </p>
 
     <h2 id="faq-heading">Common questions</h2>

@@ -13,6 +13,7 @@ same reason the rest of the suite reads web/data: what matters before a push is
 whether the payload is sound, not whether the code that wrote it still runs.
 """
 
+import json
 import re
 
 import numpy as np
@@ -22,6 +23,8 @@ from conftest import ROOT
 
 PAGES = ROOT / 'web' / 'house-prices'
 SITEMAP = ROOT / 'web' / 'sitemap.xml'
+HOMEPAGE = ROOT / 'web' / 'index.html'
+PAGE_MAP = ROOT / 'web' / 'data' / 'pages.json'
 SITE = 'https://realhouseprices.uk'
 
 # Google truncates a title around 60 characters and a description around 160.
@@ -248,3 +251,63 @@ def test_the_sitemap_dates_match_the_export(sitemap_urls, meta):
     dates = set(re.findall(r'<lastmod>([^<]+)</lastmod>', _read(SITEMAP)))
     assert dates == {meta['generated']}, (
         f'sitemap dates {sorted(dates)} against export {meta["generated"]}')
+
+
+####################
+# The way in from the rest of the site
+
+
+def test_the_homepage_links_to_the_area_pages():
+    """Without this the 43 pages are orphans.
+
+    A sitemap tells a crawler a page exists; a link tells it the page matters,
+    and only the link passes any authority to it. Pages that are listed and
+    never linked get crawled, indexed and then left at the bottom - which is
+    the whole of the difference between publishing them and ranking them.
+
+    It has to be in the markup rather than built by JavaScript, which is why
+    this reads index.html rather than anything the app renders at runtime.
+    """
+    html = HOMEPAGE.read_text(encoding = 'utf-8')
+    assert 'href="/house-prices/"' in html, (
+        'index.html has no static link to /house-prices/ - the area pages are '
+        'reachable only from the sitemap')
+
+
+def test_the_page_map_matches_the_pages_on_disk(pages):
+    """The app reads this to decide whether to offer a link through.
+
+    An entry with no page behind it is a 404 handed to a reader who trusted the
+    button; a page with no entry is a page the tool never offers at all.
+    """
+    if not PAGE_MAP.exists():
+        pytest.skip('web/data/pages.json is absent - run step 08')
+
+    mapping = json.loads(PAGE_MAP.read_text(encoding = 'utf-8'))
+
+    dead = {code: url for code, url in mapping.items()
+            if url.strip('/').split('/')[-1] != 'house-prices'
+            and url.strip('/').split('/')[-1] not in pages}
+    assert not dead, f'page map entries with no page behind them: {dead}'
+
+    linked = {url.strip('/').split('/')[-1] for url in mapping.values()}
+    unoffered = sorted(slug for slug in pages
+                       if slug and slug not in linked)
+    assert not unoffered, f'pages the app is never told about: {unoffered}'
+
+
+def test_the_page_map_only_names_areas_the_data_has(meta):
+    if not PAGE_MAP.exists():
+        pytest.skip('web/data/pages.json is absent - run step 08')
+
+    mapping = json.loads(PAGE_MAP.read_text(encoding = 'utf-8'))
+    codes = {area['c'] for area in meta['areas']}
+    unknown = sorted(set(mapping) - codes)
+    assert not unknown, f'page map names areas the export does not have: {unknown}'
+
+
+def test_every_page_links_to_the_hub_in_its_markup(pages):
+    """Every page carries the nav link, so the hub is one hop from anywhere."""
+    missing = [slug or '(index)' for slug, html in pages.items()
+               if 'href="/house-prices/"' not in html]
+    assert not missing, f'pages with no link to the hub: {missing}'

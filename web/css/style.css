@@ -193,9 +193,46 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+.topbar-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+
+.topbar-nav a {
+	display: inline-block;
+	padding: 5px 9px;
+	border-radius: var(--r-sm);
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-muted);
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.topbar-nav a:hover { color: var(--text); background: var(--surface-sunken); }
+.topbar-nav a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+
 @media (max-width: 560px) {
 	.brand-sub, .topbar-meta { display: none; }
 }
+
+/* The way through from the tool to the area's own page. Only rendered when that
+   page exists, so it is absent for a local authority until those are generated
+   rather than pointing at a URL that is not there yet. */
+.area-page-link { margin: 14px 0 0; }
+
+.area-page-link a {
+	display: inline-block;
+	padding: 9px 14px;
+	border-radius: var(--r-md);
+	background: var(--surface-sunken);
+	border: 1px solid var(--border-strong);
+	color: var(--accent-bright);
+	font-size: 13.5px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.area-page-link a::after { content: " →"; }
+.area-page-link a:hover { border-color: var(--accent-bright); }
+.area-page-link a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ---------- Layout ---------- */
 
