@@ -1,0 +1,17 @@
+venv/*
+__pycache__/
+*.pyc
+*.csv
+*.parquet
+*.geojson
+*.zip
+!web/data/**
+
+# Local tooling config and scratch notes - never tracked
+.claude/
+.claude.json
+.claude.json.backup
+CLAUDE.md
+.mcp.json
+.vscode/
+
