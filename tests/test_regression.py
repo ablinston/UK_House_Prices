@@ -17,7 +17,7 @@ checked separately and loosely.
 import numpy as np
 import pytest
 
-from conftest import HOUSING_TYPES
+from conftest import AGGREGATE_CODES, HOUSING_TYPES
 
 # A monthly refresh adds one month. Room for a couple of skipped runs, and for
 # a re-export over the same source data adding none at all.
@@ -100,16 +100,25 @@ def test_no_area_disappeared_quietly(meta, previous):
 
 
 def test_the_mappable_range_kept_pace_with_the_area_list(meta, previous):
-    """geoAreas has to move with the area count, not independently of it.
+    """geoAreas has to track the local authorities, not drift on its own.
 
-    Everything the map does is bounded by geoAreas. If it drifted while the
-    list stayed put, the map would either stop short of real local authorities
-    or run off the end of them into the national series.
+    Everything the map does is bounded by geoAreas. If it moved while the list
+    stayed put, the map would either stop short of real local authorities or
+    run off the end of them into the series that carry no boundary.
+
+    How many of those series there are is allowed to change - adding a tier is
+    a deliberate edit to AGGREGATE_CODES in step 06, and comparing this refresh
+    against the last one would otherwise forbid it outright. What is caught
+    here is the mappable range moving without the local authorities moving too.
     """
-    aggregates_now = len(meta['areas']) - meta['geoAreas']
-    aggregates_then = len(previous.meta['areas']) - previous.meta['geoAreas']
-    assert aggregates_now == aggregates_then, (
-        f'{aggregates_now} non-mappable series this time, {aggregates_then} last')
+    unmappable = len(meta['areas']) - meta['geoAreas']
+    assert unmappable == len(AGGREGATE_CODES), (
+        f'{unmappable} series sit past geoAreas, but step 06 declares '
+        f'{len(AGGREGATE_CODES)}')
+
+    drift = meta['geoAreas'] - previous.meta['geoAreas']
+    assert -MAX_AREAS_REMOVED <= drift <= MAX_AREAS_ADDED, (
+        f'the mappable range moved by {drift:+} local authorities')
 
 
 def test_area_names_are_stable(meta, previous):

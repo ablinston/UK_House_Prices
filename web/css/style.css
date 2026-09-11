@@ -988,6 +988,286 @@ select:focus-visible {
 	color: var(--text-muted);
 }
 
+/* ---------- Area pages ---------- */
+
+/* The generated pages in web/house-prices. They share this stylesheet rather
+   than carrying one of their own: it already holds every colour token and the
+   font face, and one cached file across the whole site beats two. */
+
+.brand { text-decoration: none; color: inherit; }
+
+.pg {
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 26px 20px 56px;
+}
+
+.pg-crumbs {
+	font-size: 12.5px;
+	color: var(--text-subtle);
+	margin-bottom: 18px;
+}
+
+.pg-crumbs a { color: var(--text-muted); text-decoration: none; }
+.pg-crumbs a:hover { text-decoration: underline; }
+.pg-crumbs span { margin: 0 2px; }
+
+/* Unlike the homepage, where the heading sits above a tool and stays out of
+   its way, this is an article — the heading is the thing being read. */
+.pg h1 {
+	margin: 0;
+	font-size: 28px;
+	font-weight: 680;
+	letter-spacing: -0.026em;
+	line-height: 1.18;
+	color: var(--text);
+	text-wrap: balance;
+}
+
+.pg-standfirst {
+	margin: 8px 0 0;
+	font-size: 15.5px;
+	line-height: 1.55;
+	color: var(--text-muted);
+	max-width: 56ch;
+}
+
+.pg h2 {
+	margin: 38px 0 12px;
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.015em;
+	color: var(--text);
+}
+
+.pg p { font-size: 15px; line-height: 1.65; color: var(--text-muted); }
+
+/* ----- headline figures ----- */
+
+.pg-headline {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 1px;
+	background: var(--border);
+	border: 1px solid var(--border);
+	border-radius: var(--r-lg);
+	overflow: hidden;
+	margin: 22px 0 0;
+}
+
+.pg-stat {
+	background: var(--surface);
+	padding: 14px 18px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.pg-stat-label {
+	font-size: 11.5px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+}
+
+.pg-stat-value {
+	font-size: 27px;
+	font-weight: 680;
+	letter-spacing: -0.025em;
+	line-height: 1.15;
+	font-variant-numeric: tabular-nums;
+	color: var(--text);
+}
+
+.pg-up { color: var(--pos); }
+.pg-down { color: var(--neg); }
+
+.pg-verdict {
+	margin: 20px 0 0;
+	font-size: 16.5px !important;
+	line-height: 1.6;
+	color: var(--text) !important;
+	border-left: 3px solid var(--accent-bright);
+	padding-left: 14px;
+}
+
+.pg-verdict b { font-weight: 680; }
+
+/* ----- the chart ----- */
+
+.pg-figure { margin: 26px 0 0; }
+
+.pg-figure svg {
+	display: block;
+	width: 100%;
+	height: 230px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+}
+
+.pg-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pg-tick { fill: var(--text-subtle); font-size: 11px; font-family: inherit; }
+
+/* The real line is the point of the page, so it is the solid one; the cash line
+   is context and is dashed, which reads as the less substantial of the two. */
+.pg-real {
+	stroke: var(--accent-bright);
+	stroke-width: 2;
+	vector-effect: non-scaling-stroke;
+	stroke-linejoin: round;
+}
+
+.pg-nominal {
+	stroke: var(--text-subtle);
+	stroke-width: 1.5;
+	stroke-dasharray: 4 3;
+	vector-effect: non-scaling-stroke;
+	stroke-linejoin: round;
+}
+
+.pg-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 18px;
+	margin-top: 9px;
+	font-size: 12.5px;
+	color: var(--text-subtle);
+}
+
+.pg-key { display: flex; align-items: center; gap: 7px; }
+
+.pg-key::before {
+	content: "";
+	width: 16px;
+	height: 0;
+	border-top-width: 2px;
+	border-top-style: solid;
+}
+
+.pg-key-real::before { border-top-color: var(--accent-bright); }
+.pg-key-nominal::before { border-top-color: var(--text-subtle); border-top-style: dashed; }
+
+/* ----- tables ----- */
+
+.pg-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	background: var(--surface);
+}
+
+.pg-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+
+.pg-table th, .pg-table td {
+	text-align: left;
+	padding: 11px 16px;
+	border-bottom: 1px solid var(--border);
+}
+
+.pg-table thead th {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--text-subtle);
+	background: var(--surface-sunken);
+	white-space: nowrap;
+}
+
+.pg-table tbody tr:last-child th,
+.pg-table tbody tr:last-child td { border-bottom: none; }
+
+.pg-table tbody th {
+	font-weight: 600;
+	color: var(--text);
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.pg-from { font-size: 11.5px; font-weight: 400; color: var(--text-subtle); }
+
+.pg-num {
+	text-align: right !important;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.pg-muted { color: var(--text-muted); font-weight: 500; }
+
+.pg-rank, .pg-note { font-size: 14.5px; }
+.pg-rank b { color: var(--text); }
+
+/* ----- directory and siblings ----- */
+
+.pg-directory, .pg-siblings {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+	gap: 1px;
+	background: var(--border);
+	border: 1px solid var(--border);
+	border-radius: var(--r-md);
+	overflow: hidden;
+}
+
+.pg-directory li, .pg-siblings li { background: var(--surface); }
+
+.pg-directory a, .pg-siblings a {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 14px;
+	font-size: 14.5px;
+	color: var(--accent-bright);
+	text-decoration: none;
+}
+
+.pg-directory li { display: flex; }
+.pg-directory a { flex: 1; }
+
+.pg-directory a:hover, .pg-siblings a:hover { background: var(--surface-sunken); }
+
+.pg-dir-value {
+	align-self: center;
+	padding-right: 14px;
+	font-size: 13px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ----- call to action ----- */
+
+.pg-cta { margin: 30px 0 0; }
+
+.pg-button {
+	display: inline-block;
+	padding: 10px 18px;
+	border-radius: var(--r-md);
+	background: var(--accent);
+	color: #fff;
+	font-size: 14.5px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.pg-button:hover { background: var(--accent-bright); }
+
+.pg-button:focus-visible,
+.pg-directory a:focus-visible,
+.pg-siblings a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+@media (max-width: 560px) {
+	.pg h1 { font-size: 23px; }
+	.pg-stat-value { font-size: 23px; }
+}
+
 /* ---------- Footer ---------- */
 
 .site-footer {

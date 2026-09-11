@@ -26,9 +26,9 @@ PIPELINE_DATA = ROOT / 'data'
 # prices-N.bin
 HOUSING_TYPES = ['Overall', 'Detached', 'SemiDetached', 'Terraced', 'Flat']
 
-# The national and regional series, in the order they are appended after the
-# local authorities. Kept here as a second copy of the list in step 06, so that
-# a reordering of either one is caught rather than followed.
+# The series without a boundary, in the order they are appended after the local
+# authorities. Kept here as a second copy of the list in step 06, so that a
+# reordering of either one is caught rather than followed.
 AGGREGATE_CODES = ['K02000001',   # United Kingdom
                    'E92000001',   # England
                    'W92000004',   # Wales
@@ -42,7 +42,41 @@ AGGREGATE_CODES = ['K02000001',   # United Kingdom
                    'E12000006',   # East of England
                    'E12000007',   # London
                    'E12000008',   # South East
-                   'E12000009']   # South West
+                   'E12000009',   # South West
+
+                   # Counties, which Land Registry publishes alongside the districts
+                   # that make them up - so there is nothing to aggregate here and no
+                   # weighting to invent. England only: Scotland, Wales and Northern
+                   # Ireland have no tier between the country and the council area.
+                   'E13000001',   # Inner London
+                   'E13000002',   # Outer London
+                   'E11000001',   # Greater Manchester
+                   'E11000002',   # Merseyside
+                   'E11000003',   # South Yorkshire
+                   'E11000007',   # Tyne and Wear
+                   'E11000005',   # West Midlands
+                   'E11000006',   # West Yorkshire
+                   'E10000003',   # Cambridgeshire
+                   'E10000007',   # Derbyshire
+                   'E10000008',   # Devon
+                   'E10000011',   # East Sussex
+                   'E10000012',   # Essex
+                   'E10000013',   # Gloucestershire
+                   'E10000014',   # Hampshire
+                   'E10000015',   # Hertfordshire
+                   'E10000016',   # Kent
+                   'E10000017',   # Lancashire
+                   'E10000018',   # Leicestershire
+                   'E10000019',   # Lincolnshire
+                   'E10000020',   # Norfolk
+                   'E10000024',   # Nottinghamshire
+                   'E10000025',   # Oxfordshire
+                   'E10000028',   # Staffordshire
+                   'E10000029',   # Suffolk
+                   'E10000030',   # Surrey
+                   'E10000031',   # Warwickshire
+                   'E10000032',   # West Sussex
+                   'E10000034']   # Worcestershire
 
 # Great Britain and Northern Ireland, with room for Shetland, the Isles of
 # Scilly and Lowestoft. Anything outside it is a projection that went wrong:

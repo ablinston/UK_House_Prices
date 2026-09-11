@@ -372,7 +372,7 @@ function populateControls() {
 		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
 		.join('');
 
-	// Grouped so the national and regional series read as a different kind of
+	// Grouped so the series without a boundary read as a different kind of
 	// thing from the local authorities, rather than as odd entries in an
 	// otherwise alphabetical list
 	const option = (area, i) => `<option value="${i}">${area.n}</option>`;
@@ -381,7 +381,7 @@ function populateControls() {
 
 	el.areaSelect.innerHTML =
 		(aggregates.length
-			? `<optgroup label="National &amp; regional">` +
+			? `<optgroup label="Nations, regions &amp; counties">` +
 			  aggregates.map((a, k) => option(a, meta.geoAreas + k)).join('') +
 			  `</optgroup>`
 			: '') +
@@ -405,8 +405,15 @@ function populateControls() {
 	el.startSlider.value = String(state.start);
 	el.endSlider.value = String(state.end);
 
+	// A county or region page hands its visitor over with ?area=E10000030 — the
+	// ONS code rather than the name, because names collide: the West Midlands
+	// is both a region and a county. An unrecognised code falls through to the
+	// default, so a mistyped link still opens a working map rather than a blank
+	// reading.
+	const requested = new URLSearchParams(location.search).get('area');
+	const wanted = requested ? meta.areas.findIndex((area) => area.c === requested) : -1;
 	const defaultArea = meta.areas.findIndex((area) => area.c === DEFAULT_AREA_CODE);
-	state.area = defaultArea >= 0 ? defaultArea : 0;
+	state.area = wanted >= 0 ? wanted : defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
 
 	// Browsers restore checked radios across a reload, so the toggle is read

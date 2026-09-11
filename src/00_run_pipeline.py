@@ -20,6 +20,7 @@ def run_pipeline(cpi_date, hpi_date):
         'src/05_cpi_processing.py',
         'src/06_export_web_data.py',
         'src/07_export_places.py',
+        'src/08_export_pages.py',
     ]
     
     for step in STEPS:
