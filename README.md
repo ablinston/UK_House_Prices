@@ -44,7 +44,7 @@ config.yaml                 Source URLs and filenames for the raw data
 global.py                   Shared imports and config, exec'd by every script
 functions/                  Helper functions, auto-loaded by global.py
 src/
-  00_run_pipeline.py        Runs steps 01-08, then the tests
+  00_run_pipeline.py        Runs steps 01-08 in gated stages, with the tests
   01_scrape_hpi_data.py     Download Land Registry UK HPI
   02_scrape_cpi_data.py     Download ONS CPI
   03_geojson_processing.py  Reproject LAD boundaries to WGS84 (Windows only)
@@ -86,6 +86,15 @@ python src/00_run_pipeline.py
 This downloads the source files, reprocesses them, regenerates `web/data/` and
 runs the tests. It exits 0 only if there was new data and the tests passed, so
 a calling script can push on that.
+
+Each stage has to earn the next one. Scraping and processing always run, and
+the pipeline then stops unless the download actually contained a new month -
+Land Registry publishes monthly and the Pi looks weekly, so most runs end here
+without exporting anything. If there is new data, `web/data/` is written and
+checked; only if those checks pass are the pages in `web/house-prices/` built,
+and they are checked in turn. A failing check stops the run before the next
+stage writes anything, which is why a bad refresh never gets as far as
+producing pages.
 
 To regenerate only the web assets from data you already have:
 
