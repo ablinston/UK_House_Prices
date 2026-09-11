@@ -19,7 +19,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Container-local git config that *includes* the host's ~/.gitconfig (bind-
 # mounted read-only to /root/.gitconfig-host) instead of writing into it, and
 # adds a safe.directory exception for the bind-mounted /workspace repo.
-RUN printf '[include]\n\tpath = /root/.gitconfig-host\n[safe]\n\tdirectory = /workspace\n' > /root/.gitconfig
+#
+# [user] is declared after the include deliberately. An include is applied where
+# it appears, so anything after it wins - which pins the commit identity to the
+# GitHub noreply address whatever the host happens to be configured with. The
+# automated data commits from the Pi went out carrying a personal Gmail address,
+# which is written into the commit object itself and so is public for good on a
+# public repo; this is what stops the next one.
+RUN printf '%b' '[include]\n\tpath = /root/.gitconfig-host\n' \
+                '[user]\n\tname = ablinston\n\temail = ablinston@users.noreply.github.com\n' \
+                '[safe]\n\tdirectory = /workspace\n' > /root/.gitconfig
 
 WORKDIR /workspace
 
