@@ -1,9 +1,17 @@
 Real House Prices
 https://realhouseprices.uk
 
-The PolyForm Strict License 1.0.0 in LICENSE covers the code in this
-repository: the Python pipeline in src/ and functions/, the tests, and the HTML,
-CSS and JavaScript under web/.
+SCOPE
+
+The PolyForm Strict License 1.0.0 in LICENSE covers everything in this
+repository that is the licensor's own work. That means the Python pipeline in
+src/, functions/ and global.py, the tests, the HTML, CSS and JavaScript under
+web/, the configuration, and the generated output committed alongside them -
+the encoded price matrices in web/data and the pages in web/house-prices - which
+are the output of that pipeline and are covered as part of it rather than being
+a separate thing left unlicensed.
+
+The three exceptions are set out below.
 
 The source is published to be read. It is not open source, and the difference is
 deliberate: the licence permits reading, study and private noncommercial use,
@@ -11,9 +19,24 @@ and does not permit modifying the code, redistributing it, or running it
 commercially. An open source licence would have granted the right to stand this
 site up again somewhere else, which is the one thing it is meant not to do.
 
-Three things sit alongside that code and are covered by something else again.
-Each is the sort of thing a reader might reasonably assume the licence reaches,
-so each is written down rather than left to be inferred.
+RIGHTS RESERVED
+
+LICENSE grants a copyright licence and a patent licence, and says in terms that
+it implies no others. For the avoidance of doubt, and because a compiled dataset
+can attract a right of its own separately from copyright, no database right in
+the assembled data in web/data is granted by it, and no right in any trade mark,
+trading name or get-up is granted by it. Those are reserved in full.
+
+Any use beyond what LICENSE permits - which includes any commercial use, any
+redistribution, and any modified version - requires a separate written licence
+from the copyright holder. Enquiries are welcome at the address in LICENSE.
+
+
+THE THREE EXCEPTIONS
+
+Each of these sits alongside the licensor's own work and is covered by something
+else again. Each is the sort of thing a reader might reasonably assume the
+licence reaches, so each is written down rather than left to be inferred.
 
 
 1. THE DATA
