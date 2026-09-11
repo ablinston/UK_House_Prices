@@ -1,13 +1,19 @@
 Real House Prices
 https://realhouseprices.uk
 
-The GNU Affero General Public License v3.0 in LICENSE covers the code in this
+The PolyForm Strict License 1.0.0 in LICENSE covers the code in this
 repository: the Python pipeline in src/ and functions/, the tests, and the HTML,
 CSS and JavaScript under web/.
 
-Three things sit alongside that code and are not covered by it. Each one is the
-sort of thing a reader might reasonably assume the licence reaches, so each is
-written down rather than left to be inferred.
+The source is published to be read. It is not open source, and the difference is
+deliberate: the licence permits reading, study and private noncommercial use,
+and does not permit modifying the code, redistributing it, or running it
+commercially. An open source licence would have granted the right to stand this
+site up again somewhere else, which is the one thing it is meant not to do.
+
+Three things sit alongside that code and are covered by something else again.
+Each is the sort of thing a reader might reasonably assume the licence reaches,
+so each is written down rather than left to be inferred.
 
 
 1. THE DATA
@@ -39,17 +45,17 @@ from the original licences.
 visual design of the site are not licensed with the code.
 
 A source licence has never covered what a thing is called, but that is easy to
-assume when the two arrive in the same repository, so it is said plainly here:
-the code may be run, modified and deployed under the terms in LICENSE, and none
-of that carries the right to run it as Real House Prices or to present it as
-this site.
+assume when the two arrive in the same repository, so it is said plainly here.
+Nothing in LICENSE carries any right to run this site under its name, and
+nothing in it grants the right to stand the site up again under another.
 
 
 3. THE VENDORED COMPONENTS
 
 web/vendor/ holds third-party code and fonts that arrived under their own
-licences and keep them. The AGPL applies to this project's own work, not to
-these, and each remains governed by the terms it came with.
+licences and keep them. LICENSE applies to this project's own work, not to
+these, and each remains governed by the permissive terms it came with - which
+are more generous than the terms above, and are not narrowed by them.
 
   uPlot 1.6.31            MIT                          the price history chart
   Inter                   SIL Open Font License 1.1    the typeface

@@ -151,18 +151,21 @@ including the map ramp and the chart, defined as a CSS custom property in
 
 ## Licence
 
-The code is under the [GNU Affero General Public License v3.0](LICENSE). It is
-open source in the ordinary sense - read it, run it, fork it, learn from it -
-with one condition that matters for something deployed as a website: anyone
-running a modified version as a network service has to publish their source
-too. A permissive licence would let a modified copy of this site go up with
-nothing given back, and this is the one clause that asks for something in
-return.
+The code is published to be read, not to be reused. It is under the
+[PolyForm Strict License 1.0.0](LICENSE), which permits reading, study and
+private noncommercial use, and does not permit modifying it, redistributing it
+or running it commercially.
+
+That is a deliberate choice rather than an oversight. An open source licence,
+including a copyleft one, grants the right to stand this site up again
+somewhere else, and the site rather than the source is the thing being built
+here. Anyone is welcome to read how it works.
 
 What the licence does not cover is set out in [NOTICE](NOTICE): the data, which
 is Open Government Licence and was free to everyone already; the name, domain
-and visual design, which are not licensed with the code; and the third-party
-components in `web/vendor/`, which keep the licences they arrived under.
+and visual design, which are not licensed at all; and the third-party
+components in `web/vendor/`, which keep the more permissive licences they
+arrived under.
 
 ## Data sources and licensing
 
