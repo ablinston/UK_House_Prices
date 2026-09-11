@@ -395,21 +395,49 @@ function populateControls() {
 		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
 		.join('');
 
-	// Grouped so the series without a boundary read as a different kind of
-	// thing from the local authorities, rather than as odd entries in an
-	// otherwise alphabetical list
+	// Grouped by tier, so a list of four hundred names reads as a hierarchy
+	// rather than as one run the eye has to search. The ONS code says which
+	// tier a series belongs to: K02 the UK, a 9 in second place a country, E12
+	// a region, and E10, E11 or E13 a county - shire, metropolitan, and the two
+	// halves of London respectively.
+	//
+	// The option's value stays the area's own index, so reordering what is on
+	// screen cannot pull it out of step with the data behind it.
 	const option = (area, i) => `<option value="${i}">${area.n}</option>`;
-	const localAuthorities = meta.areas.slice(0, meta.geoAreas);
-	const aggregates = meta.areas.slice(meta.geoAreas);
+
+	const tierOf = (code) => {
+		if (code.startsWith('K02')) return 'uk';
+		if (/^[EWSN]9/.test(code)) return 'country';
+		if (code.startsWith('E12')) return 'region';
+		if (/^E1[013]/.test(code)) return 'county';
+		return 'other';
+	};
+
+	const indexed = meta.areas.map((area, i) => ({ area, i }));
+	const inTier = (tier) => indexed
+		.slice(meta.geoAreas)
+		.filter((entry) => tierOf(entry.area.c) === tier)
+		.sort((a, b) => a.area.n.localeCompare(b.area.n, 'en-GB'));
+
+	// The UK leads its group rather than sorting into the middle of it: it is
+	// the default selection and the whole of which the rest are parts, so a
+	// reader looking for it should not have to hunt past Scotland.
+	const countries = [...inTier('uk'), ...inTier('country')];
+
+	const group = (label, entries) => (entries.length
+		? `<optgroup label="${label}">` +
+		  entries.map((entry) => option(entry.area, entry.i)).join('') +
+		  `</optgroup>`
+		: '');
 
 	el.areaSelect.innerHTML =
-		(aggregates.length
-			? `<optgroup label="Nations, regions &amp; counties">` +
-			  aggregates.map((a, k) => option(a, meta.geoAreas + k)).join('') +
-			  `</optgroup>`
-			: '') +
+		group('Countries', countries) +
+		group('Regions of England', inTier('region')) +
+		group('Counties', inTier('county')) +
+		group('Other series', inTier('other')) +
 		`<optgroup label="Local authorities">` +
-		localAuthorities.map(option).join('') +
+		indexed.slice(0, meta.geoAreas)
+			.map((entry) => option(entry.area, entry.i)).join('') +
 		`</optgroup>`;
 
 	const last = meta.nMonths - 1;

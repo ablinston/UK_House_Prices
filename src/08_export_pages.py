@@ -33,9 +33,9 @@ SITE = 'https://realhouseprices.uk'
 # did not describe: only three of the forty-three peak that month in real terms,
 # and the UK itself peaks in 2021. Each area's own peak is computed below.
 HORIZONS = [('1 year', 12),
-            ('3 years', 36),
             ('5 years', 60),
             ('10 years', 120),
+            ('15 years', 180),
             (None, None)]          # open ended: back to this series' own start
 
 # The window every area is ranked and compared over. It has to be the same one
