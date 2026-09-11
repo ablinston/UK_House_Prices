@@ -927,7 +927,7 @@ select:focus-visible {
 	text-wrap: pretty;
 }
 
-@media (min-width: 860px) {
+@media (min-width: 960px) {
 	.masthead-sub {
 		padding-left: 11px;
 		border-left: 1px solid var(--border-strong);
