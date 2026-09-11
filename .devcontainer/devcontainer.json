@@ -16,6 +16,12 @@
     "source=${localEnv:USERPROFILE}/.ssh,target=/tmp/host-ssh,type=bind,consistency=cached,readonly",
   ],
 
+  // Copies the staged ~/.ssh above into a writable /root/.ssh and fixes the
+  // mode on it. Without this the key stays at /tmp/host-ssh, where ssh never
+  // looks, and every push fails with "Permission denied (publickey)" on a
+  // container that looks like it was handed a key.
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+
   // Mirrors your current Cursor extensions so they're auto-installed inside
   // the container too. Left out: anysphere.remote-containers/-ssh/-wsl,
   // which are the client-side extensions that make the remote connection in

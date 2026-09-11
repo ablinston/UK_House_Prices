@@ -39,6 +39,9 @@ const el = {
 	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
+	areaPageLink: document.getElementById('area-page-link'),
+	areaPageHref: document.getElementById('area-page-href'),
+	areaPageName: document.getElementById('area-page-name'),
 	topbarMeta: document.getElementById('topbar-meta'),
 	basisNote: document.getElementById('basis-note'),
 };
@@ -230,10 +233,30 @@ function render() {
 	});
 }
 
+/* Which areas have a page of their own, as written by step 08. Read rather
+ * than derived: working the URL out from the name would mean a slug rule here
+ * and an identical one in Python, agreeing until the day a name arrived with an
+ * apostrophe in it and the link quietly 404'd for that one area. Absent until
+ * the fetch lands, and absent for good if it fails - in which case the button
+ * simply never appears, which costs a link and breaks nothing. */
+let areaPages = null;
+
+function renderAreaPageLink() {
+	if (!meta || !areaPages) return;
+
+	const page = areaPages[meta.areas[state.area].c];
+	el.areaPageLink.hidden = !page;
+	if (!page) return;
+
+	el.areaPageHref.href = page;
+	el.areaPageName.textContent = meta.areas[state.area].n;
+}
+
 function renderAreaDetail() {
 	renderHeadline();
 	renderStats();
 	renderChart();
+	renderAreaPageLink();
 }
 
 /* The background housing types resolve independently, so their redraws are
@@ -372,21 +395,49 @@ function populateControls() {
 		.map((type, i) => `<option value="${i}">${typeLabel(type)}</option>`)
 		.join('');
 
-	// Grouped so the national and regional series read as a different kind of
-	// thing from the local authorities, rather than as odd entries in an
-	// otherwise alphabetical list
+	// Grouped by tier, so a list of four hundred names reads as a hierarchy
+	// rather than as one run the eye has to search. The ONS code says which
+	// tier a series belongs to: K02 the UK, a 9 in second place a country, E12
+	// a region, and E10, E11 or E13 a county - shire, metropolitan, and the two
+	// halves of London respectively.
+	//
+	// The option's value stays the area's own index, so reordering what is on
+	// screen cannot pull it out of step with the data behind it.
 	const option = (area, i) => `<option value="${i}">${area.n}</option>`;
-	const localAuthorities = meta.areas.slice(0, meta.geoAreas);
-	const aggregates = meta.areas.slice(meta.geoAreas);
+
+	const tierOf = (code) => {
+		if (code.startsWith('K02')) return 'uk';
+		if (/^[EWSN]9/.test(code)) return 'country';
+		if (code.startsWith('E12')) return 'region';
+		if (/^E1[013]/.test(code)) return 'county';
+		return 'other';
+	};
+
+	const indexed = meta.areas.map((area, i) => ({ area, i }));
+	const inTier = (tier) => indexed
+		.slice(meta.geoAreas)
+		.filter((entry) => tierOf(entry.area.c) === tier)
+		.sort((a, b) => a.area.n.localeCompare(b.area.n, 'en-GB'));
+
+	// The UK leads its group rather than sorting into the middle of it: it is
+	// the default selection and the whole of which the rest are parts, so a
+	// reader looking for it should not have to hunt past Scotland.
+	const countries = [...inTier('uk'), ...inTier('country')];
+
+	const group = (label, entries) => (entries.length
+		? `<optgroup label="${label}">` +
+		  entries.map((entry) => option(entry.area, entry.i)).join('') +
+		  `</optgroup>`
+		: '');
 
 	el.areaSelect.innerHTML =
-		(aggregates.length
-			? `<optgroup label="National &amp; regional">` +
-			  aggregates.map((a, k) => option(a, meta.geoAreas + k)).join('') +
-			  `</optgroup>`
-			: '') +
+		group('Countries', countries) +
+		group('Regions of England', inTier('region')) +
+		group('Counties', inTier('county')) +
+		group('Other series', inTier('other')) +
 		`<optgroup label="Local authorities">` +
-		localAuthorities.map(option).join('') +
+		indexed.slice(0, meta.geoAreas)
+			.map((entry) => option(entry.area, entry.i)).join('') +
 		`</optgroup>`;
 
 	const last = meta.nMonths - 1;
@@ -405,8 +456,15 @@ function populateControls() {
 	el.startSlider.value = String(state.start);
 	el.endSlider.value = String(state.end);
 
+	// A county or region page hands its visitor over with ?area=E10000030 — the
+	// ONS code rather than the name, because names collide: the West Midlands
+	// is both a region and a county. An unrecognised code falls through to the
+	// default, so a mistyped link still opens a working map rather than a blank
+	// reading.
+	const requested = new URLSearchParams(location.search).get('area');
+	const wanted = requested ? meta.areas.findIndex((area) => area.c === requested) : -1;
 	const defaultArea = meta.areas.findIndex((area) => area.c === DEFAULT_AREA_CODE);
-	state.area = defaultArea >= 0 ? defaultArea : 0;
+	state.area = wanted >= 0 ? wanted : defaultArea >= 0 ? defaultArea : 0;
 	el.areaSelect.value = String(state.area);
 
 	// Browsers restore checked radios across a reload, so the toggle is read
@@ -483,6 +541,16 @@ async function start() {
 
 	if ('requestIdleCallback' in window) requestIdleCallback(loadRemaining, { timeout: 2500 });
 	else setTimeout(loadRemaining, 500);
+
+	// Nothing on screen waits on this, and a failure costs one link rather than
+	// the page, so it is fetched last and its rejection is swallowed.
+	fetch('data/pages.json')
+		.then((response) => (response.ok ? response.json() : null))
+		.then((loaded) => {
+			areaPages = loaded;
+			renderAreaPageLink();
+		})
+		.catch(() => {});
 }
 
 start().catch((error) => {

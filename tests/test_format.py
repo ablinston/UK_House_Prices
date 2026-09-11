@@ -291,3 +291,30 @@ def test_no_place_is_labelled_twice(places):
             for feature in places['features']]
     duplicates = {key for key in seen if seen.count(key) > 1}
     assert not duplicates, f'duplicate places: {sorted(duplicates)[:5]}'
+
+
+def test_every_series_without_a_boundary_has_a_tier(meta):
+    """main.js groups the dropdown by reading the tier off the ONS code.
+
+    K02 is the UK, a 9 in second place a country, E12 a region, and E10, E11 or
+    E13 a county. A series arriving with a code outside that set falls into the
+    catch-all group at the bottom of the list, under a heading that tells the
+    reader nothing - which is the sort of thing nobody notices until somebody
+    asks why 'Greater London Authority' is filed under 'Other series'.
+    """
+    import re
+
+    def tier(code):
+        if code.startswith('K02'):
+            return 'uk'
+        if re.match(r'^[EWSN]9', code):
+            return 'country'
+        if code.startswith('E12'):
+            return 'region'
+        if re.match(r'^E1[013]', code):
+            return 'county'
+        return None
+
+    homeless = [area['n'] for area in meta['areas'][meta['geoAreas']:]
+                if tier(area['c']) is None]
+    assert not homeless, f'series with no tier for the dropdown: {homeless}'

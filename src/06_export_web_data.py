@@ -21,11 +21,12 @@ OUT_DIR = 'web/data'
 SCALE = 1000          # index units: first observation for an area = 1000
 COORD_DP = 4          # ~11 m precision, ample at national zoom
 
-# National and regional series, kept alongside the local authorities so an area
-# can be compared with its region and with the UK as a whole. These have no
-# boundary on the map: they are selectable from the dropdown only, and are
-# appended after the local authorities so that an area's position in the list
-# still doubles as its feature id in lads.geojson.
+# Series without a boundary of their own - the UK, the four countries, the nine
+# English regions and the English counties - kept alongside the local
+# authorities so an area can be compared with the tier above it. They are
+# selectable from the dropdown only, and are appended after the local
+# authorities so that an area's position in the list still doubles as its
+# feature id in lads.geojson.
 AGGREGATE_CODES = ['K02000001',   # United Kingdom
                    'E92000001',   # England
                    'W92000004',   # Wales
@@ -39,7 +40,41 @@ AGGREGATE_CODES = ['K02000001',   # United Kingdom
                    'E12000006',   # East of England
                    'E12000007',   # London
                    'E12000008',   # South East
-                   'E12000009']   # South West
+                   'E12000009',   # South West
+
+                   # Counties, which Land Registry publishes alongside the districts
+                   # that make them up - so there is nothing to aggregate here and no
+                   # weighting to invent. England only: Scotland, Wales and Northern
+                   # Ireland have no tier between the country and the council area.
+                   'E13000001',   # Inner London
+                   'E13000002',   # Outer London
+                   'E11000001',   # Greater Manchester
+                   'E11000002',   # Merseyside
+                   'E11000003',   # South Yorkshire
+                   'E11000007',   # Tyne and Wear
+                   'E11000005',   # West Midlands
+                   'E11000006',   # West Yorkshire
+                   'E10000003',   # Cambridgeshire
+                   'E10000007',   # Derbyshire
+                   'E10000008',   # Devon
+                   'E10000011',   # East Sussex
+                   'E10000012',   # Essex
+                   'E10000013',   # Gloucestershire
+                   'E10000014',   # Hampshire
+                   'E10000015',   # Hertfordshire
+                   'E10000016',   # Kent
+                   'E10000017',   # Lancashire
+                   'E10000018',   # Leicestershire
+                   'E10000019',   # Lincolnshire
+                   'E10000020',   # Norfolk
+                   'E10000024',   # Nottinghamshire
+                   'E10000025',   # Oxfordshire
+                   'E10000028',   # Staffordshire
+                   'E10000029',   # Suffolk
+                   'E10000030',   # Surrey
+                   'E10000031',   # Warwickshire
+                   'E10000032',   # West Sussex
+                   'E10000034']   # Worcestershire
 
 housing_types = ['Overall',
                  'Detached',
@@ -228,26 +263,6 @@ if missing:
 
 
 ####################
-# Sitemap
-
-# Written from here rather than kept by hand so that 'lastmod' tracks the data
-# it describes. A date typed into the file once is a month stale by the next
-# refresh, and a sitemap whose dates stop matching what the crawler finds on the
-# page is one the crawler stops taking any notice of.
-SITE_URL = 'https://realhouseprices.uk/'
-
-with open('web/sitemap.xml', 'w') as f:
-    f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-            '  <url>\n'
-            f'    <loc>{SITE_URL}</loc>\n'
-            f'    <lastmod>{meta["generated"]}</lastmod>\n'
-            '    <changefreq>monthly</changefreq>\n'
-            '  </url>\n'
-            '</urlset>\n')
-
-
-####################
 # Report what was written
 
 print('\nWritten to ' + OUT_DIR + ':')
@@ -255,8 +270,6 @@ written = [f'prices-{t}.bin' for t in range(len(housing_types))] + ['meta.json',
 for name in written:
     size = os.path.getsize(f'{OUT_DIR}/{name}') / 1024
     print(f'  {name:<14} {size:>8.0f} KB')
-
-print('Written to web: sitemap.xml')
 
 # Remove the single-file matrix left by earlier versions of this script
 if os.path.exists(f'{OUT_DIR}/prices.bin'):
