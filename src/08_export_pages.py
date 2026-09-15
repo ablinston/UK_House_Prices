@@ -1206,13 +1206,13 @@ def map_figure(t, metric):
 
 def rank_table(t, rows, metric, caption, start_rank = 1):
     if metric == 'price':
-        head_cells = ('<th scope="col">Average price</th>'
-                      + ''.join(f'<th scope="col">Real change<span class="pg-from">{esc(label)}</span></th>'
+        head_cells = ('<th scope="col" class="pg-num">Average price</th>'
+                      + ''.join(f'<th scope="col" class="pg-num">Real change<span class="pg-from">{esc(label)}</span></th>'
                                 for label, _ in RANK_COLUMNS[1:]))
     else:
-        head_cells = ('<th scope="col">Real change<span class="pg-from">5 years</span></th>'
-                      '<th scope="col">Cash change<span class="pg-from">5 years</span></th>'
-                      + ''.join(f'<th scope="col">Real change<span class="pg-from">{esc(label)}</span></th>'
+        head_cells = ('<th scope="col" class="pg-num">Real change<span class="pg-from">5 years</span></th>'
+                      '<th scope="col" class="pg-num">Cash change<span class="pg-from">5 years</span></th>'
+                      + ''.join(f'<th scope="col" class="pg-num">Real change<span class="pg-from">{esc(label)}</span></th>'
                                 for label, back in RANK_COLUMNS if back != RANK_WINDOW))
 
     def num(value, muted = False):
