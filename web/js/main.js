@@ -6,7 +6,7 @@
 
 import { loadMeta, loadType, isLoaded, price, growth, growthByArea, priceByArea, annualise, coverage } from './data.js';
 import { createMap } from './map-canvas.js';
-import { createChart } from './chart.js';
+import { createChart, formatPrice } from './chart.js';
 
 const DEFAULT_AREA_CODE = 'K02000001';   // United Kingdom
 const DEFAULT_START = '2005-01';
@@ -39,6 +39,8 @@ const el = {
 	legendRamp: document.querySelector('.legend-ramp'),
 	legendMin: document.getElementById('legend-min'),
 	legendMax: document.getElementById('legend-max'),
+	dataToggle: document.getElementById('data-toggle'),
+	dataTable: document.getElementById('area-data'),
 	areaPageLink: document.getElementById('area-page-link'),
 	areaPageHref: document.getElementById('area-page-href'),
 	areaPageName: document.getElementById('area-page-name'),
@@ -209,6 +211,7 @@ function renderChart() {
 	});
 
 	chart.update([xs, ...series]);
+	renderDataTable();
 
 	el.chartTitle.textContent =
 		`Average ${state.real ? 'real' : 'nominal'} price · ${meta.areas[state.area].n}`;
@@ -250,6 +253,40 @@ function renderAreaPageLink() {
 
 	el.areaPageHref.href = page;
 	el.areaPageName.textContent = meta.areas[state.area].n;
+}
+
+/* The figures behind the chart, as a table: the months in the slider range for
+ * the selected area, one column per housing type, in whichever basis the
+ * control says. Built only while it is open, since it is a few thousand cells
+ * that most visitors never ask for, and rebuilt with the chart so the two never
+ * show different numbers. Latest month first, because that is the end anyone
+ * opening it is looking for. */
+function renderDataTable() {
+	if (el.dataTable.hidden) return;
+
+	const head = meta.types.map((type) => `<th scope="col">${typeLabel(type)}</th>`).join('');
+	let body = '';
+	for (let month = state.end; month >= state.start; month--) {
+		const cells = meta.types.map((_, i) => {
+			if (!isLoaded(i)) return '<td class="pg-num pg-muted">…</td>';
+			return `<td class="pg-num">${formatPrice(price(i, state.area, month, state.real))}</td>`;
+		}).join('');
+		body += `<tr><th scope="row">${meta.monthLabels[month]}</th>${cells}</tr>`;
+	}
+
+	el.dataTable.innerHTML = `<table class="pg-table">
+		<caption class="visually-hidden">Average ${state.real ? 'real' : 'nominal'} price by month and housing type</caption>
+		<thead><tr><th scope="col">Month</th>${head}</tr></thead>
+		<tbody>${body}</tbody>
+	</table>`;
+}
+
+function toggleDataTable() {
+	const open = el.dataTable.hidden;
+	el.dataTable.hidden = !open;
+	el.dataToggle.setAttribute('aria-expanded', String(open));
+	el.dataToggle.textContent = open ? 'Hide data' : 'Show data';
+	renderDataTable();
 }
 
 function renderAreaDetail() {
@@ -327,6 +364,9 @@ function applyMapMode() {
 }
 
 function wireControls() {
+	el.dataToggle.hidden = false;
+	el.dataToggle.addEventListener('click', toggleDataTable);
+
 	el.startSlider.addEventListener('input', () => {
 		state.start = Math.min(Number(el.startSlider.value), state.end - 1);
 		el.startSlider.value = String(state.start);
