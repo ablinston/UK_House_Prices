@@ -76,8 +76,13 @@ for t in range(len(types)):
 nominal = base[:, :, None] * matrix / scale
 nominal[matrix == 0] = np.nan
 
-# Deflated to the latest month, which is what 'in today's money' means here
-real = nominal / (cpi[None, None, :] / cpi[-1])
+# Deflated to the month step 06 rebased the CPI series on - the latest month of
+# CPI data, which is 'cpiBase' - by dividing straight through, as data.js does.
+# An earlier version re-based on the last month of price data instead, which
+# runs a month behind the CPI, so every real price here sat a fraction of a
+# percent away from the same price on the map. The two have to agree.
+real = nominal / cpi[None, None, :]
+CPI_BASE = meta['cpiBase']
 
 start_year, start_month = (int(v) for v in meta['months']['start'].split('-'))
 month_labels = []
@@ -334,6 +339,14 @@ def footer():
 '''
 
 
+def series_attr(values):
+    """A series as one attribute value: whole pounds, comma separated, and an
+    empty field where there is no observation. Read back by the hover readout
+    and the data table, which is why it has to be the same numbers the lines
+    were drawn from and not a second rendering of them."""
+    return ','.join('' if not np.isfinite(v) else str(round(v)) for v in values)
+
+
 def sparkline(area, t = 0):
     """Real and nominal average price, 1995 to the latest month.
 
@@ -341,6 +354,12 @@ def sparkline(area, t = 0):
     page, and a page whose substance arrives only after a script has run is a
     page Google may index without it. Colours come from the same tokens the rest
     of the site uses, so it follows the visitor's theme like everything else.
+
+    The figures the lines were drawn from travel with the figure as attributes,
+    so the script on the page can put a month's values under the pointer
+    without a fetch and the data table can show exactly what was plotted.
+    The legend doubles as the readout: with the script off it shows the latest
+    month, which is a complete caption rather than an empty one.
     """
     W, H = 720, 260
     PAD_L, PAD_R, PAD_T, PAD_B = 58, 12, 14, 26
@@ -384,16 +403,22 @@ def sparkline(area, t = 0):
         f'{month_labels[i][:4]}</text>'
         for i in years)
 
-    return f'''<figure class="pg-figure">
+    return f'''<figure class="pg-figure" data-label="{esc(type_label(t))}" data-start="{month_labels[0]}"
+        data-real="{series_attr(series['real'])}" data-nominal="{series_attr(series['nominal'])}">
   <svg viewBox="0 0 {W} {H}" role="img" preserveAspectRatio="none"
+       data-x0="{PAD_L}" data-x1="{W - PAD_R}"
        aria-label="Average {esc(type_label(t)).lower()} price in {esc(areas[area]['n'])}, real and nominal, {FIRST_LABEL} to {LATEST_LABEL}">
     {grid}{axis}
     <path class="pg-nominal" d="{paths['nominal']}" fill="none"/>
     <path class="pg-real" d="{paths['real']}" fill="none"/>
+    <line class="pg-cursor" x1="{x(LATEST):.1f}" x2="{x(LATEST):.1f}" y1="{PAD_T}" y2="{H - PAD_B}" hidden/>
   </svg>
   <figcaption class="pg-legend">
-    <span class="pg-key pg-key-real">In today's money</span>
-    <span class="pg-key pg-key-nominal">Cash price at the time</span>
+    <span class="pg-key pg-key-real">In today's money
+      <b class="pg-key-value" data-series="real">{money(series['real'][LATEST])}</b></span>
+    <span class="pg-key pg-key-nominal">Cash price at the time
+      <b class="pg-key-value" data-series="nominal">{money(series['nominal'][LATEST])}</b></span>
+    <span class="pg-key-month">{esc(LATEST_LABEL)}</span>
   </figcaption>
 </figure>'''
 
@@ -508,26 +533,147 @@ def type_picker():
             f'</div></div>')
 
 
+def data_toggle():
+    """'Show chart data' and the empty region it fills. The table itself is built by
+    the script from the figures' attributes rather than written here: with all
+    five types it would be four thousand cells of hidden markup on every page,
+    for a thing most readers never open. Hidden until the script unhides it,
+    since with JavaScript off there is nothing to build the table from and a
+    button that does nothing is worse than none. 'data-base' is the month real
+    prices are quoted in, which the table heading says in full."""
+    return (f'<div class="pg-data">'
+            f'<button type="button" class="pg-data-toggle" aria-expanded="false" '
+            f'aria-controls="price-data" data-base="{esc(CPI_BASE)}" hidden>Show chart data</button>'
+            f'<div class="pg-table-wrap pg-data-table" id="price-data" hidden></div>'
+            f'</div>')
+
+
 def type_script():
-    """Every type is already in the markup; this only decides which is on show.
-    With JavaScript off the select does nothing and the page stays on Overall,
-    which is a complete page rather than a broken one."""
+    """Three things, none of which the page needs to be complete.
+
+    The select only decides which type is on show; every type is already in the
+    markup, so with JavaScript off it does nothing and the page stays on
+    Overall. The hover readout puts the month under the pointer into the legend,
+    which otherwise keeps showing the latest month. And 'Show chart data' lays the
+    numbers carried on the selected type's figure out as a table, latest month
+    first, rebuilt if the type changes while it is open.
+    """
     return '''
 <script>
 (function () {
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December'];
+
+  function money(v) { return v === '' ? '-' : '£' + Number(v).toLocaleString('en-GB'); }
+
+  function monthName(start, i) {
+    var parts = start.split('-');
+    var total = Number(parts[0]) * 12 + (Number(parts[1]) - 1) + i;
+    return MONTHS[total % 12] + ' ' + Math.floor(total / 12);
+  }
+
   var select = document.getElementById('housing-type');
-  if (!select) return;
   var blocks = document.querySelectorAll('.pg-type');
   var rows = document.querySelectorAll('[data-type-row]');
-  select.addEventListener('change', function () {
-    var chosen = select.value;
-    for (var i = 0; i < blocks.length; i++) {
-      blocks[i].hidden = blocks[i].dataset.type !== chosen;
+  var figures = Array.prototype.slice.call(document.querySelectorAll('.pg-figure'));
+
+  /* Hovering the chart. The x axis is linear in month index and the SVG is
+   * stretched to fit its box, so the month under the pointer is a proportion of
+   * the plot width and nothing more; the values come off the figure's own
+   * attributes. A mouse leaving the chart puts the latest month back; a finger
+   * lifting off leaves its month showing, since there is nothing else on a
+   * phone to hold the readout on. */
+  figures.forEach(function (figure) {
+    var svg = figure.querySelector('svg');
+    var cursor = svg.querySelector('.pg-cursor');
+    var real = figure.dataset.real.split(',');
+    var nominal = figure.dataset.nominal.split(',');
+    var out = {
+      real: figure.querySelector('[data-series="real"]'),
+      nominal: figure.querySelector('[data-series="nominal"]'),
+      month: figure.querySelector('.pg-key-month')
+    };
+    var x0 = Number(svg.dataset.x0);
+    var x1 = Number(svg.dataset.x1);
+    var width = svg.viewBox.baseVal.width;
+    var last = real.length - 1;
+
+    function show(i) {
+      out.month.textContent = monthName(figure.dataset.start, i);
+      out.real.textContent = money(real[i]);
+      out.nominal.textContent = money(nominal[i]);
+      var x = (x0 + (i / last) * (x1 - x0)).toFixed(1);
+      cursor.setAttribute('x1', x);
+      cursor.setAttribute('x2', x);
+      figure.classList.toggle('is-hover', i !== last);
     }
-    for (var k = 0; k < rows.length; k++) {
-      rows[k].classList.toggle('pg-row-on', rows[k].dataset.typeRow === chosen);
+
+    function track(event) {
+      var box = svg.getBoundingClientRect();
+      var vx = ((event.clientX - box.left) / box.width) * width;
+      var i = Math.round(((vx - x0) / (x1 - x0)) * last);
+      show(Math.max(0, Math.min(last, i)));
     }
+
+    svg.addEventListener('pointerdown', track);
+    svg.addEventListener('pointermove', track);
+    svg.addEventListener('pointerleave', function (event) {
+      if (event.pointerType !== 'touch') show(last);
+    });
   });
+
+  /* The data table, for whichever type is on show. Latest month first, since
+   * that is the end anyone opening it is looking for. */
+  var toggle = document.querySelector('.pg-data-toggle');
+  var table = document.getElementById('price-data');
+
+  function figureFor(type) {
+    var block = document.querySelector('.pg-type[data-type="' + type + '"] .pg-figure');
+    return block || null;
+  }
+
+  function renderTable() {
+    var figure = figureFor(select ? select.value : '0');
+    if (!figure) { table.innerHTML = ''; return; }
+    var real = figure.dataset.real.split(',');
+    var nominal = figure.dataset.nominal.split(',');
+    var body = '';
+    for (var i = real.length - 1; i >= 0; i--) {
+      if (real[i] === '' && nominal[i] === '') continue;
+      body += '<tr><th scope="row">' + monthName(figure.dataset.start, i) + '</th>' +
+        '<td class="pg-num">' + money(nominal[i]) + '</td>' +
+        '<td class="pg-num">' + money(real[i]) + '</td></tr>';
+    }
+    table.innerHTML = '<table class="pg-table"><caption class="visually-hidden">Average ' +
+      figure.dataset.label.toLowerCase() + ' price by month</caption>' +
+      '<thead><tr><th scope="col">Month</th><th scope="col" class="pg-num">Cash price</th>' +
+      '<th scope="col" class="pg-num">In ' + toggle.dataset.base + ' money</th></tr></thead>' +
+      '<tbody>' + body + '</tbody></table>';
+  }
+
+  if (toggle && table && figures.length) {
+    toggle.hidden = false;
+    toggle.addEventListener('click', function () {
+      var open = table.hidden;
+      if (open) renderTable();
+      table.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = open ? 'Hide chart data' : 'Show chart data';
+    });
+  }
+
+  if (select) {
+    select.addEventListener('change', function () {
+      var chosen = select.value;
+      for (var i = 0; i < blocks.length; i++) {
+        blocks[i].hidden = blocks[i].dataset.type !== chosen;
+      }
+      for (var k = 0; k < rows.length; k++) {
+        rows[k].classList.toggle('pg-row-on', rows[k].dataset.typeRow === chosen);
+      }
+      if (table && !table.hidden) renderTable();
+    });
+  }
 })();
 </script>
 '''
@@ -581,7 +727,7 @@ def horizons(area, t, name):
                 f'{esc(type_label(t).lower())} homes in {esc(name)}.</p>')
 
     head_cells = ''.join(
-        f'<th scope="col">{esc(label)}'
+        f'<th scope="col" class="pg-num">{esc(label)}'
         f'<span class="pg-from">from {esc(frm)}</span></th>'
         for label, frm, _, _ in spans)
     real_cells = ''.join(
@@ -680,6 +826,7 @@ def area_page(area):
   {type_picker()}
   {type_blocks(area, lambda t: tiles(area, t))}
   {type_blocks(area, lambda t: sparkline(area, t))}
+  {data_toggle()}
   {type_blocks(area, lambda t: prose(area, t))}
 
   <h2>How {esc(name)} house prices have changed</h2>
@@ -689,8 +836,8 @@ def area_page(area):
   <div class="pg-table-wrap">
     <table class="pg-table">
       <caption class="visually-hidden">Average price and real-terms change by property type</caption>
-      <thead><tr><th scope="col">Type</th><th scope="col">Average price</th>
-        <th scope="col">Real change, {years} years</th></tr></thead>
+      <thead><tr><th scope="col">Type</th><th scope="col" class="pg-num">Average price</th>
+        <th scope="col" class="pg-num">Real change, {years} years</th></tr></thead>
       <tbody>{type_rows}</tbody>
     </table>
   </div>
@@ -749,6 +896,7 @@ def index_page():
   {type_picker()}
   {type_blocks(area, lambda t: tiles(area, t))}
   {type_blocks(area, lambda t: sparkline(area, t))}
+  {data_toggle()}
   {type_blocks(area, lambda t: prose(area, t, where = 'across the UK'))}
 
   <h2>How UK house prices have changed</h2>

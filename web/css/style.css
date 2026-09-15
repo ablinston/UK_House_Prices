@@ -247,6 +247,11 @@ body {
 .area-page-link a:hover { background: var(--accent-bright); }
 .area-page-link a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
+/* 'Show chart data' under the chart. It borrows the area pages' .pg-data classes
+   outright, since the stylesheet is shared; only the spacing differs, because
+   here it sits above the page link rather than above prose. */
+.area-data { margin: 0 0 14px; }
+
 /* ---------- Layout ---------- */
 
 .layout {
@@ -1199,6 +1204,62 @@ select:focus-visible {
 .pg-key-real::before { border-top-color: var(--accent-bright); }
 .pg-key-nominal::before { border-top-color: var(--text-subtle); border-top-style: dashed; }
 
+/* The legend is also the readout. Each key carries the value for one month —
+   the latest until the pointer is over the chart, then whichever month it is
+   over — and the month itself sits at the end of the row. Tabular figures so
+   the row does not jitter as the pointer moves across a run of prices with a
+   different number of digits. */
+.pg-key-value {
+	margin-left: 2px;
+	font-weight: 640;
+	font-variant-numeric: tabular-nums;
+	color: var(--text);
+}
+
+.pg-key-month { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* pan-y keeps a vertical swipe over the chart as a page scroll; a sideways one
+   scrubs the readout instead. Same reasoning as the map. */
+.pg-figure svg { touch-action: pan-y; cursor: crosshair; }
+
+.pg-cursor {
+	display: none;
+	stroke: var(--text-subtle);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
+}
+
+.pg-figure.is-hover .pg-cursor { display: block; }
+
+/* 'Show chart data', and the table it opens. Quiet, and beside the chart rather
+   than at the foot of the page: the figures are a secondary want, and as a
+   solid button it competed with the one link that is meant to be pressed. The
+   table is capped in height and scrolls inside its own frame, with the heading
+   row pinned, since three hundred and more months laid out in full would push
+   everything below the chart off the bottom of the page. */
+.pg-data { margin: 12px 0 0; }
+
+.pg-data-toggle {
+	padding: 6px 12px;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-md);
+	background: var(--surface);
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 12.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.pg-data-toggle:hover { color: var(--text); border-color: var(--text-subtle); }
+.pg-data-toggle:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+.pg-data-table { margin-top: 10px; max-height: 420px; overflow: auto; }
+.pg-data-table .pg-table { font-size: 13.5px; }
+.pg-data-table th, .pg-data-table td { padding: 7px 14px; }
+.pg-data-table thead th { position: sticky; top: 0; z-index: 1; }
+.pg-data-table tbody th { font-weight: 500; color: var(--text-muted); }
+
 /* ----- tables ----- */
 
 .pg-table-wrap {
@@ -1253,6 +1314,9 @@ select:focus-visible {
 .pg-wide thead th:first-child { width: 1%; }
 .pg-wide tbody th { text-align: left; }
 
+/* On the cells and on their column headings alike: a heading set left over a
+   column of figures set right hangs off the wrong edge of every number under
+   it. Whatever writes a numeric column puts the class on its heading too. */
 .pg-num {
 	text-align: right !important;
 	font-variant-numeric: tabular-nums;
