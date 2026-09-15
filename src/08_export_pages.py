@@ -902,6 +902,8 @@ def index_page():
   <h2>How UK house prices have changed</h2>
   {type_blocks(area, lambda t: horizons(area, t, 'the UK'))}
 
+  {rankings_directory()}
+
   <h2>Every area</h2>
   <p class="pg-note">The percentage beside each area is its real-terms change
      over the last {years} years, for the property type selected above.</p>
@@ -916,6 +918,447 @@ def index_page():
 
 
 ####################
+# The ranking pages
+
+# Four lists of the local authorities: the cheapest, the dearest, the fastest
+# rising and the hardest falling. The searches these answer carry no horizon -
+# 'where are house prices rising fastest in uk', 'biggest house price falls
+# uk', 'cheapest house prices uk' - so the choice of window is ours, and the
+# URLs carry none either, so that the pages accumulate standing rather than
+# being replaced by a dated one each year.
+#
+# The movement pages rank on five years in real terms. Twelve months is the
+# number every monthly bulletin and every newspaper table already publishes,
+# and at district level it is noisy and revised for months afterwards - a
+# ranking on it would reshuffle every refresh, led by the City of London and
+# the Isles of Scilly. Five years is what nobody publishes by district, is
+# stable enough to be believed, and is where inflation and cash growth have
+# pulled furthest apart. One and ten years sit alongside as columns, so the
+# page still answers the reader who wants last year without being about it.
+#
+# 'cheapest' and 'most expensive' are separate pages rather than two ends of
+# one: a list search is won by a title that matches it, and a page called
+# 'cheapest and most expensive' half-matches both.
+
+RANK_WINDOW = 60          # the headline window, in months
+RANK_COLUMNS = [('1 year', 12), ('5 years', 60), ('10 years', 120)]
+TOP_N = 25                # the national list - the 'list' headings below say it in words
+SECTION_N = 10            # each country, and London
+
+MAP_DIR = f'{OUT_DIR}/maps'
+MAP_W = 520               # the natural width of the map image, in CSS pixels
+RAMP_BINS = 32
+SEQ_FLOOR = 0.15          # as in map-canvas.js: prices start a little way up the ramp
+
+lads = list(range(geo_areas))
+
+RANK_SECTIONS = [('England', lambda c: c[0] == 'E'),
+                 ('Scotland', lambda c: c[0] == 'S'),
+                 ('Wales', lambda c: c[0] == 'W'),
+                 ('Northern Ireland', lambda c: c[0] == 'N'),
+                 ('London', lambda c: c[:3] == 'E09')]
+
+RANKINGS = [
+    {'slug': 'cheapest', 'section': 'Cheapest areas in {name}', 'list': 'The 25 cheapest areas', 'metric': 'price', 'reverse': False,
+     'title': 'Cheapest House Prices in the UK, {year}: Every Area Ranked',
+     'h1': 'Cheapest house prices in the UK',
+     'description': ('The cheapest places to buy a house in the UK: every local '
+                     'authority ranked by average price in {month}, with the '
+                     'real-terms change over five years.')},
+    {'slug': 'most-expensive', 'section': 'Most expensive areas in {name}', 'list': 'The 25 most expensive areas', 'metric': 'price', 'reverse': True,
+     'title': 'Most Expensive House Prices in the UK, {year}: Areas Ranked',
+     'h1': 'Most expensive house prices in the UK',
+     'description': ('The most expensive places to buy a house in the UK: every '
+                     'local authority ranked by average price in {month}, with the '
+                     'real-terms change over five years.')},
+    {'slug': 'rising-fastest', 'section': 'Rising fastest in {name}', 'list': 'The 25 fastest-rising areas', 'metric': 'change', 'reverse': True,
+     'title': 'Where House Prices Are Rising Fastest in the UK, {year}',
+     'h1': 'Where house prices are rising fastest in the UK',
+     'description': ('The UK areas where house prices have risen most over five '
+                     'years, adjusted for inflation: a map and every local '
+                     'authority ranked, to {month}.')},
+    {'slug': 'falling-most', 'section': 'Biggest falls in {name}', 'list': 'The 25 biggest falls', 'metric': 'change', 'reverse': False,
+     'title': 'Where House Prices Have Fallen Most in the UK, {year}',
+     'h1': 'Where house prices have fallen most in the UK',
+     'description': ('The UK areas where house prices have fallen most over five '
+                     'years once inflation is counted: a map and every local '
+                     'authority ranked, to {month}.')},
+]
+
+
+def area_link(i):
+    """An area's own page where it has one, and the map with it selected where
+    it does not. The local authorities have no pages yet, so today this is the
+    map for every row; the day step 08 writes them, the rows link there with no
+    change here."""
+    if i in slugs:
+        return f'/house-prices/{slugs[i]}/'
+    return f'/?area={areas[i]["c"]}'
+
+
+def latest_price(t, i):
+    return nominal[t][i][LATEST]
+
+
+def window_change(series, i, back):
+    return change(series, i, LATEST - back, LATEST)
+
+
+def ranked(t, metric, reverse):
+    """Every local authority with a figure, best first for the page in hand."""
+    scored = []
+    for i in lads:
+        value = (latest_price(t, i) if metric == 'price'
+                 else window_change(real[t], i, RANK_WINDOW))
+        if np.isfinite(value):
+            scored.append((value, i))
+    scored.sort(key = lambda pair: pair[0], reverse = reverse)
+    return scored
+
+
+####################
+# The map image
+
+# Drawn here as a standalone SVG rather than by the canvas on the homepage:
+# these pages have no script worth loading a renderer for, and an image is
+# indexed, cached across the four pages and painted before any script runs.
+# The geometry is the same boundaries the map uses, projected once and
+# thinned to the resolution the image is shown at - a coastline drawn to the
+# nearest quarter of a pixel is a file three times the size for nothing anyone
+# could see. Colours come from the same tokens as the app, read out of the
+# stylesheet, with both themes carried inside the file: an image cannot see
+# the page's CSS, so it brings its own copy and switches on the same query.
+
+def css_tokens():
+    """The :root tokens for each theme, read straight from the stylesheet so
+    the image and the app cannot drift apart."""
+    css = open('web/css/style.css', encoding = 'utf-8').read()
+    dark_at = css.index('@media (prefers-color-scheme: dark)')
+
+    def block(text):
+        body = text[text.index(':root {') + 7:]
+        body = body[:body.index('\n}')]
+        return dict(re.findall(r'(--[\w-]+):\s*([^;]+);', body))
+
+    return block(css[:dark_at]), block(css[dark_at:])
+
+
+def parse_colour(text):
+    text = text.strip()
+    if text.startswith('#'):
+        return tuple(int(text[k:k + 2], 16) for k in (1, 3, 5))
+    return tuple(int(float(v)) for v in re.findall(r'[\d.]+', text)[:3])
+
+
+def ramp_colours(tokens):
+    """The diverging ramp as RAMP_BINS hex colours, blended in sRGB the way
+    map-canvas.js blends it."""
+    neg, mid, pos = (parse_colour(tokens[k]) for k in ('--ramp-neg', '--ramp-mid', '--ramp-pos'))
+
+    def mix(a, b, f):
+        return '#' + ''.join(f'{round(a[k] + (b[k] - a[k]) * f):02x}' for k in range(3))
+
+    out = []
+    for b in range(RAMP_BINS):
+        pos_t = (b / (RAMP_BINS - 1)) * 2 - 1
+        out.append(mix(neg, mid, pos_t + 1) if pos_t < 0 else mix(mid, pos, pos_t))
+    return out
+
+
+def project_boundaries():
+    """Every area's outline as an SVG path in image coordinates, keyed by area
+    index. Web Mercator, as on the map, at twice the shown resolution so the
+    coordinates can be whole numbers - relative moves in integers are what
+    keep the file small."""
+    geo = j.load(open('web/data/lads.geojson', encoding = 'utf-8'))
+
+    def mercator(lon, lat):
+        return lon, math.degrees(math.log(math.tan(math.pi / 4 + math.radians(lat) / 2)))
+
+    rings = {}
+    for feature in geo['features']:
+        geometry = feature['geometry']
+        polys = (geometry['coordinates'] if geometry['type'] == 'MultiPolygon'
+                 else [geometry['coordinates']])
+        rings[feature['id']] = [[mercator(x, y) for x, y in ring]
+                                for poly in polys for ring in poly]
+
+    xs = [x for area in rings.values() for ring in area for x, _ in ring]
+    ys = [y for area in rings.values() for ring in area for _, y in ring]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    scale = MAP_W * 2 / (x1 - x0)
+    height = math.ceil((y1 - y0) * scale)
+
+    def path(area_rings):
+        d = []
+        for ring in area_rings:
+            kept = []
+            for x, y in ring:
+                px = round((x - x0) * scale)
+                py = round((y1 - y) * scale)
+                # Two image units is one shown pixel; a point that close to
+                # the last kept one draws nothing
+                if not kept or abs(px - kept[-1][0]) + abs(py - kept[-1][1]) >= 2:
+                    kept.append((px, py))
+            if len(kept) < 3:
+                continue
+            moves = ' '.join(f'{bx - ax} {by - ay}' for (ax, ay), (bx, by) in zip(kept, kept[1:]))
+            d.append(f'M{kept[0][0]} {kept[0][1]}l{moves}z')
+        return ''.join(d)
+
+    return {area: path(area_rings) for area, area_rings in rings.items()}, MAP_W * 2, height
+
+
+LIGHT_TOKENS, DARK_TOKENS = css_tokens()
+LIGHT_RAMP, DARK_RAMP = ramp_colours(LIGHT_TOKENS), ramp_colours(DARK_TOKENS)
+MAP_PATHS, MAP_VW, MAP_VH = project_boundaries()
+
+
+def colour_bound(values):
+    """The tenth largest absolute change, as on the map, so a handful of
+    extreme districts do not flatten the rest of the country to one tint."""
+    magnitudes = sorted((abs(v) for v in values if np.isfinite(v)), reverse = True)
+    if not magnitudes:
+        return 1.0
+    return max(magnitudes[min(9, len(magnitudes) - 1)], 0.1)
+
+
+def price_bounds(values):
+    """Nine trimmed from each end, as on the map: Kensington and Chelsea alone
+    sits high enough to leave every other area the same pale tint."""
+    finite = sorted(v for v in values if np.isfinite(v))
+    trim = min(9, len(finite) // 20)
+    lo, hi = finite[trim], finite[-1 - trim]
+    return lo, (hi if hi > lo else lo + 1)
+
+
+def choropleth(values, mode, path):
+    """Write the map for one set of values, and return the ramp's domain so the
+    legend on the page can say what the ends mean."""
+    if mode == 'price':
+        lo, hi = price_bounds(values)
+    else:
+        bound = colour_bound(values)
+        lo, hi = -bound, bound
+
+    def bin_of(value):
+        if not np.isfinite(value):
+            return 'n'
+        if mode == 'price':
+            normalised = SEQ_FLOOR + (1 - SEQ_FLOOR) * min(max((value - lo) / (hi - lo), 0), 1)
+        else:
+            normalised = min(max(value / hi, -1), 1)
+        return f'c{round((normalised + 1) / 2 * (RAMP_BINS - 1))}'
+
+    def rules(tokens, ramp):
+        return (f'.n{{fill:{tokens["--map-nodata"]}}}'
+                f'path{{stroke:{tokens["--map-line"]}}}'
+                + ''.join(f'.c{b}{{fill:{ramp[b]}}}' for b in range(RAMP_BINS)))
+
+    style = (f'path{{stroke-width:1;stroke-linejoin:round}}'
+             f'{rules(LIGHT_TOKENS, LIGHT_RAMP)}'
+             f'@media (prefers-color-scheme: dark){{{rules(DARK_TOKENS, DARK_RAMP)}}}')
+
+    paths = ''.join(f'<path class="{bin_of(values[i])}" d="{MAP_PATHS[i]}"/>'
+                    for i in lads if MAP_PATHS.get(i))
+
+    write(path, f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {MAP_VW} {MAP_VH}">'
+                f'<style>{style}</style>{paths}</svg>\n')
+    return lo, hi
+
+
+def map_figure(t, metric):
+    """The map and its legend. The legend is HTML rather than part of the
+    image, so it is set in the page's own type and follows its theme."""
+    if metric == 'price':
+        values = [latest_price(t, i) for i in lads]
+        name = f'price-{t}.svg'
+        lo, hi = choropleth(values, 'price', f'{MAP_DIR}/{name}')
+        alt = (f'Map of UK local authorities shaded by average '
+               f'{type_label(t).lower()} price, {LATEST_LABEL}')
+        legend = (f'<span class="pg-map-end">{money(lo)}</span>'
+                  f'<span class="legend-ramp is-sequential"></span>'
+                  f'<span class="pg-map-end">{money(hi)}</span>')
+        what = f'Average {type_label(t).lower()} price, {LATEST_LABEL}'
+    else:
+        values = [window_change(real[t], i, RANK_WINDOW) for i in lads]
+        name = f'change-{RANK_WINDOW // 12}y-{t}.svg'
+        lo, hi = choropleth(values, 'change', f'{MAP_DIR}/{name}')
+        alt = (f'Map of UK local authorities shaded by real-terms change in '
+               f'average {type_label(t).lower()} price over the five years to {LATEST_LABEL}')
+        legend = (f'<span class="pg-map-end">{pct(lo, 0)}</span>'
+                  f'<span class="legend-ramp"></span>'
+                  f'<span class="pg-map-end">{pct(hi, 0)}</span>')
+        what = (f'Real-terms change in average {type_label(t).lower()} price, '
+                f'{pretty_month(month_labels[LATEST - RANK_WINDOW])} to {LATEST_LABEL}')
+
+    return (f'<figure class="pg-map">'
+            f'<img src="/house-prices/maps/{name}" width="{MAP_W}" height="{MAP_VH // 2}" '
+            f'alt="{esc(alt)}" loading="lazy" decoding="async">'
+            f'<figcaption><span class="pg-map-what">{esc(what)}</span>'
+            f'<span class="pg-map-scale">{legend}</span>'
+            f'<span class="pg-map-nodata"><span class="legend-swatch"></span>No data</span>'
+            f'</figcaption></figure>')
+
+
+####################
+# The ranking tables
+
+def rank_table(t, rows, metric, caption, start_rank = 1):
+    if metric == 'price':
+        head_cells = ('<th scope="col" class="pg-num">Average price</th>'
+                      + ''.join(f'<th scope="col" class="pg-num">Real change<span class="pg-from">{esc(label)}</span></th>'
+                                for label, _ in RANK_COLUMNS[1:]))
+    else:
+        head_cells = ('<th scope="col" class="pg-num">Real change<span class="pg-from">5 years</span></th>'
+                      '<th scope="col" class="pg-num">Cash change<span class="pg-from">5 years</span></th>'
+                      + ''.join(f'<th scope="col" class="pg-num">Real change<span class="pg-from">{esc(label)}</span></th>'
+                                for label, back in RANK_COLUMNS if back != RANK_WINDOW))
+
+    def num(value, muted = False):
+        tone = 'pg-muted' if muted else ('pg-down' if value < 0 else 'pg-up')
+        return f'<td class="pg-num {tone}">{pct(value)}</td>'
+
+    body = ''
+    for n, (value, i) in enumerate(rows, start = start_rank):
+        if metric == 'price':
+            cells = (f'<td class="pg-num">{money(value)}</td>'
+                     + ''.join(num(window_change(real[t], i, back)) for _, back in RANK_COLUMNS[1:]))
+        else:
+            cells = (num(value)
+                     + num(window_change(nominal[t], i, RANK_WINDOW), muted = True)
+                     + ''.join(num(window_change(real[t], i, back))
+                               for _, back in RANK_COLUMNS if back != RANK_WINDOW))
+        body += (f'<tr><td class="pg-rank-n">{n}</td>'
+                 f'<th scope="row"><a href="{area_link(i)}">{esc(areas[i]["n"])}</a></th>'
+                 f'{cells}</tr>')
+
+    return (f'<div class="pg-table-wrap"><table class="pg-table pg-ranking">'
+            f'<caption class="visually-hidden">{esc(caption)}</caption>'
+            f'<thead><tr><th scope="col"><span class="visually-hidden">Rank</span></th>'
+            f'<th scope="col">Area</th>{head_cells}</tr></thead>'
+            f'<tbody>{body}</tbody></table></div>')
+
+
+def rank_prose(spec, t, rows):
+    """What the list says, in a sentence or two, assembled from the figures so
+    it is never a month behind the table below it."""
+    what = 'home' if t == 0 else f'{type_label(t).lower()} home'
+    top_value, top = rows[0]
+    top_name = esc(areas[top]['n'])
+    uk_price = latest_price(t, uk_area)
+
+    if spec['metric'] == 'price':
+        other_value, other = rows[-1]
+        other_name = esc(areas[other]['n'])
+        if spec['slug'] == 'cheapest':
+            first = (f'The cheapest place to buy a {what} in the UK is <b>{top_name}</b>, '
+                     f'where the average costs <b>{money(top_value)}</b> as of {esc(LATEST_LABEL)} - '
+                     f'{top_value / uk_price * 100:.0f}% of the UK average of {money(uk_price)}. ')
+            second = (f'The dearest, {other_name}, costs {other_value / top_value:.1f} times as much.')
+        else:
+            first = (f'The most expensive place to buy a {what} in the UK is <b>{top_name}</b>, '
+                     f'where the average costs <b>{money(top_value)}</b> as of {esc(LATEST_LABEL)} - '
+                     f'{top_value / uk_price:.1f} times the UK average of {money(uk_price)}. ')
+            second = (f'The cheapest, {other_name}, is {money(other_value)}; '
+                      f'{top_name} costs {top_value / other_value:.1f} times as much.')
+        return f'<p class="pg-verdict">{first}{second}</p>'
+
+    since = esc(pretty_month(month_labels[LATEST - RANK_WINDOW]))
+    cash = window_change(nominal[t], top, RANK_WINDOW)
+    ups = sum(1 for v, _ in rows if v > 0)
+    downs = len(rows) - ups
+    uk = window_change(real[t], uk_area, RANK_WINDOW)
+
+    if spec['slug'] == 'rising-fastest':
+        first = (f'Over the five years from {since}, the average {what} rose most in real terms '
+                 f'in <b>{top_name}</b>: <b>{pct(top_value)}</b> after inflation, on a cash rise '
+                 f'of {pct(cash)}. ')
+    else:
+        cash_clause = (f'even though the cash price rose {pct(cash)}' if cash > 0
+                       else f'on a cash fall of {pct(cash)}')
+        first = (f'Over the five years from {since}, the average {what} fell most in real terms '
+                 f'in <b>{top_name}</b>: <b>{pct(top_value)}</b> after inflation, {cash_clause}. ')
+    second = (f'Of the {len(rows)} local authorities with a figure, <b>{ups}</b> are up in real '
+              f'terms over those five years and <b>{downs}</b> are down; the UK as a whole is '
+              f'{pct(uk)}.')
+    return f'<p class="pg-verdict">{first}{second}</p>'
+
+
+def ranking_page(spec):
+    slug = spec['slug']
+    path = f'/house-prices/{slug}/'
+    year = LATEST_LABEL[-4:]
+    title = spec['title'].format(year = year)
+    description = spec['description'].format(month = LATEST_LABEL)
+    metric = spec['metric']
+
+    def body(t):
+        rows = ranked(t, metric, spec['reverse'])
+        if not rows:
+            return (f'<p class="pg-note">No {esc(type_label(t).lower())} price series '
+                    f'is published for enough areas to rank.</p>')
+
+        out = rank_prose(spec, t, rows)
+        out += map_figure(t, metric)
+        out += f'<h2>{esc(spec["list"])}</h2>'
+        out += rank_table(t, rows[:TOP_N], metric,
+                          f'{spec["h1"]} by {type_label(t).lower()} price, top {TOP_N}')
+
+        for name, member in RANK_SECTIONS:
+            subset = [(v, i) for v, i in rows if member(areas[i]['c'])][:SECTION_N]
+            if len(subset) < 3:
+                continue
+            # 'cheapest areas in london' is the phrase, so the heading says it
+            heading = spec['section'].format(name = name)
+            out += f'<h2>{esc(heading)}</h2>'
+            out += rank_table(t, subset, metric, f'{heading}, {type_label(t).lower()} price')
+        return out
+
+    others = ''.join(
+        f'<li><a href="/house-prices/{other["slug"]}/">{esc(other["h1"])}</a></li>'
+        for other in RANKINGS if other['slug'] != slug)
+
+    basis = ('Prices are the Land Registry average for each local authority in '
+             f'{esc(LATEST_LABEL)}.' if metric == 'price' else
+             f'Real terms means in {esc(CPI_BASE)} money: the cash change less CPI '
+             f'inflation over the same five years. Areas are local authorities; the '
+             f'national and regional averages are not ranked.')
+
+    return head(title, description, path, spec['h1']) + f'''
+<main class="pg">
+  <nav class="pg-crumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a> <span aria-hidden="true">/</span>
+    <a href="/house-prices/">House prices by area</a> <span aria-hidden="true">/</span>
+    <span aria-current="page">{esc(spec['h1'])}</span>
+  </nav>
+
+  <h1>{esc(spec['h1'])}, {esc(year)}</h1>
+  <p class="pg-standfirst">Every local authority in the UK, ranked from Land Registry
+     data to {esc(LATEST_LABEL)}. {basis}</p>
+
+  {type_picker()}
+  {type_blocks(None, body)}
+
+  <p class="pg-cta">
+    <a class="pg-button" href="/">Explore every area on the interactive map</a>
+  </p>
+
+  <h2>Other rankings</h2>
+  <ul class="pg-siblings">{others}</ul>
+</main>
+{type_script()}
+''' + footer()
+
+
+def rankings_directory():
+    """The links from the index, above the areas."""
+    items = ''.join(f'<li><a href="/house-prices/{spec["slug"]}/">{esc(spec["h1"])}</a></li>'
+                    for spec in RANKINGS)
+    return f'<h2>Rankings</h2><ul class="pg-siblings pg-rankings">{items}</ul>'
+
+
+####################
 # Write
 
 def write(path, html):
@@ -927,12 +1370,14 @@ def write(path, html):
 write(f'{OUT_DIR}/index.html', index_page())
 for i in page_areas:
     write(f'{OUT_DIR}/{slugs[i]}/index.html', area_page(i))
+for spec in RANKINGS:
+    write(f'{OUT_DIR}/{spec["slug"]}/index.html', ranking_page(spec))
 
 # A boundary reorganisation renames areas, and a renamed area leaves its old
 # page sitting in the tree. Nothing here would overwrite it, so it would be
 # committed and deployed for ever, frozen at whatever the figures were the month
 # the name changed - a page that is wrong and has no way of ever being corrected.
-wanted = {slugs[i] for i in page_areas}
+wanted = {slugs[i] for i in page_areas} | {spec['slug'] for spec in RANKINGS} | {'maps'}
 stale = sorted(name for name in os.listdir(OUT_DIR)
                if os.path.isdir(f'{OUT_DIR}/{name}') and name not in wanted)
 
@@ -970,8 +1415,9 @@ with open('web/data/pages.json', 'w', encoding = 'utf-8') as f:
 # Owned by this step rather than by step 06, because this is the step that knows
 # what pages exist. 'lastmod' tracks the data the pages are built from, so it
 # stays honest without anyone having to remember it.
-urls = [f'{SITE}/', f'{SITE}/house-prices/'] + [f'{SITE}/house-prices/{slugs[i]}/'
-                                                for i in page_areas]
+urls = ([f'{SITE}/', f'{SITE}/house-prices/']
+        + [f'{SITE}/house-prices/{spec["slug"]}/' for spec in RANKINGS]
+        + [f'{SITE}/house-prices/{slugs[i]}/' for i in page_areas])
 
 entries = ''.join(f'  <url>\n'
                   f'    <loc>{url}</loc>\n'
@@ -993,6 +1439,7 @@ with open('web/sitemap.xml', 'w', encoding = 'utf-8') as f:
 total = sum(os.path.getsize(os.path.join(root, name))
             for root, _, files in os.walk(OUT_DIR) for name in files)
 
-print(f'  wrote {len(page_areas) + 1} pages to {OUT_DIR} ({total / 1024:.0f} KB)')
+print(f'  wrote {len(page_areas) + 1} area pages and {len(RANKINGS)} rankings '
+      f'to {OUT_DIR} ({total / 1024:.0f} KB)')
 print(f'  wrote web/sitemap.xml ({len(urls)} URLs)')
 print(f'  wrote web/data/pages.json ({len(pages)} areas)')
