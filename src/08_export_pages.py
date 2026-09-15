@@ -646,8 +646,8 @@ def type_script():
     }
     table.innerHTML = '<table class="pg-table"><caption class="visually-hidden">Average ' +
       figure.dataset.label.toLowerCase() + ' price by month</caption>' +
-      '<thead><tr><th scope="col">Month</th><th scope="col">Cash price</th>' +
-      '<th scope="col">In ' + toggle.dataset.base + ' money</th></tr></thead>' +
+      '<thead><tr><th scope="col">Month</th><th scope="col" class="pg-num">Cash price</th>' +
+      '<th scope="col" class="pg-num">In ' + toggle.dataset.base + ' money</th></tr></thead>' +
       '<tbody>' + body + '</tbody></table>';
   }
 
@@ -727,7 +727,7 @@ def horizons(area, t, name):
                 f'{esc(type_label(t).lower())} homes in {esc(name)}.</p>')
 
     head_cells = ''.join(
-        f'<th scope="col">{esc(label)}'
+        f'<th scope="col" class="pg-num">{esc(label)}'
         f'<span class="pg-from">from {esc(frm)}</span></th>'
         for label, frm, _, _ in spans)
     real_cells = ''.join(
@@ -836,8 +836,8 @@ def area_page(area):
   <div class="pg-table-wrap">
     <table class="pg-table">
       <caption class="visually-hidden">Average price and real-terms change by property type</caption>
-      <thead><tr><th scope="col">Type</th><th scope="col">Average price</th>
-        <th scope="col">Real change, {years} years</th></tr></thead>
+      <thead><tr><th scope="col">Type</th><th scope="col" class="pg-num">Average price</th>
+        <th scope="col" class="pg-num">Real change, {years} years</th></tr></thead>
       <tbody>{type_rows}</tbody>
     </table>
   </div>

@@ -264,7 +264,7 @@ function renderAreaPageLink() {
 function renderDataTable() {
 	if (el.dataTable.hidden) return;
 
-	const head = meta.types.map((type) => `<th scope="col">${typeLabel(type)}</th>`).join('');
+	const head = meta.types.map((type) => `<th scope="col" class="pg-num">${typeLabel(type)}</th>`).join('');
 	let body = '';
 	for (let month = state.end; month >= state.start; month--) {
 		const cells = meta.types.map((_, i) => {

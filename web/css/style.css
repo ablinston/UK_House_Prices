@@ -1258,9 +1258,6 @@ select:focus-visible {
 .pg-data-table .pg-table { font-size: 13.5px; }
 .pg-data-table th, .pg-data-table td { padding: 7px 14px; }
 .pg-data-table thead th { position: sticky; top: 0; z-index: 1; }
-/* Every column past the month is a price, so its heading sits over the
-   figures' right edge rather than hanging off their left */
-.pg-data-table thead th:not(:first-child) { text-align: right; }
 .pg-data-table tbody th { font-weight: 500; color: var(--text-muted); }
 
 /* ----- tables ----- */
@@ -1317,6 +1314,9 @@ select:focus-visible {
 .pg-wide thead th:first-child { width: 1%; }
 .pg-wide tbody th { text-align: left; }
 
+/* On the cells and on their column headings alike: a heading set left over a
+   column of figures set right hangs off the wrong edge of every number under
+   it. Whatever writes a numeric column puts the class on its heading too. */
 .pg-num {
 	text-align: right !important;
 	font-variant-numeric: tabular-nums;

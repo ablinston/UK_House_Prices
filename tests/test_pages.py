@@ -427,7 +427,7 @@ def test_no_page_claims_history_it_does_not_have(pages, meta, prices):
         for t, body in re.findall(r'data-type="(\d+)"[^>]*>(.*?)'
                                   r'(?=<div class="pg-type"|\Z)', html, re.S):
             t = int(t)
-            claimed = re.search(r'<th scope="col">Since (\d{4})', body)
+            claimed = re.search(r'<th scope="col"[^>]*>Since (\d{4})', body)
             if not claimed:
                 continue
 
