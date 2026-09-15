@@ -760,3 +760,269 @@ def test_the_index_and_sitemap_carry_the_rankings(pages, sitemap_urls):
     absent = sorted(slug for slug in RANKINGS
                     if f'{SITE}/house-prices/{slug}/' not in sitemap_urls)
     assert not absent, f'rankings missing from the sitemap: {absent}'
+
+
+# The ramp as step 08 bakes it into the map: this many colour classes, prices
+# starting this far up the sequential half. Both are copied from the generator
+# rather than imported, because the point is to notice if it changes.
+RAMP_BINS = 32
+SEQ_FLOOR = 0.15
+RANK_TOP = 25
+RANK_SECTION = 10
+
+# A percentage on the page is printed to one decimal, so half a unit in the
+# last place is the most the recomputed figure should ever be away from it.
+PCT_TOLERANCE = 0.051
+
+
+def _series(meta, prices, t):
+    """Nominal and real matrices for the local authorities alone, deflated the
+    way the app deflates - straight through by the CPI series."""
+    lads = meta['geoAreas']
+    cpi = np.array(meta['cpi'], dtype = float)
+    nominal = prices[t][:lads]
+    return nominal, nominal / cpi[None, :]
+
+
+def _pct_change(series, back):
+    with np.errstate(invalid = 'ignore', divide = 'ignore'):
+        return (series[:, -1] / series[:, -1 - back] - 1) * 100
+
+
+def _number(text):
+    return float(text.replace('£', '').replace(',', '').replace('%', '').replace('+', ''))
+
+
+def _type_block(html, t):
+    """The markup for one housing type on a ranking page.
+
+    Not a regex to the closing tag: the block holds tables in wrappers of their
+    own, so 'to the first </div>' is the top of the first table and nothing
+    after it. The blocks sit end to end, so each runs to the next one's
+    opening tag, and the last to the call to action that follows them.
+    """
+    starts = [m.start() for m in re.finditer(r'<div class="pg-type" data-type="\d+"', html)]
+    start = html.index(f'<div class="pg-type" data-type="{t}"')
+    after = [n for n in starts if n > start]
+    end = after[0] if after else html.index('<p class="pg-cta">')
+    return html[start:end]
+
+
+def _rank_tables(html, t):
+    """Every table in one type block, as (heading, rows); a row is
+    (rank, area code, [cell values]) with the cells as floats."""
+    block = _type_block(html, t)
+    out = []
+    for heading, table in re.findall(r'<h2>([^<]+)</h2>.*?<table class="pg-table pg-ranking">(.*?)</table>',
+                                     block, re.S):
+        rows = []
+        for rank, code, cells in re.findall(
+                r'<td class="pg-rank-n">(\d+)</td><th scope="row"><a href="/\?area=([^"]+)">[^<]+</a></th>(.*?)</tr>',
+                table):
+            values = [_number(v) if v != '-' else np.nan
+                      for v in re.findall(r'<td class="pg-num[^"]*">([^<]+)</td>', cells)]
+            rows.append((int(rank), code, values))
+        out.append((heading, rows))
+    return out
+
+
+def test_every_ranking_figure_agrees_with_the_data(ranking_pages, meta, prices):
+    """The whole table, recomputed - not just who is first.
+
+    The first row being right says the sort worked. It says nothing about the
+    columns beside it, which come from a different helper with its own window
+    arithmetic, and a five-year column that was quietly reading a four-year one
+    would leave the order intact and every number wrong.
+    """
+    codes = {a['c']: i for i, a in enumerate(meta['areas'][:meta['geoAreas']])}
+    checked, wrong = 0, []
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            nominal, real = _series(meta, prices, t)
+            columns = ([nominal[:, -1], _pct_change(real, 60), _pct_change(real, 120)]
+                       if slug in ('cheapest', 'most-expensive') else
+                       [_pct_change(real, 60), _pct_change(nominal, 60),
+                        _pct_change(real, 12), _pct_change(real, 120)])
+            for heading, rows in _rank_tables(html, t):
+                for rank, code, values in rows:
+                    area = codes[code]
+                    for k, (shown, column) in enumerate(zip(values, columns)):
+                        expected = column[area]
+                        if not np.isfinite(expected) and not np.isfinite(shown):
+                            continue
+                        checked += 1
+                        tolerance = PRICE_TOLERANCE if (k == 0 and slug in ('cheapest', 'most-expensive')) else PCT_TOLERANCE
+                        if not np.isfinite(expected) or abs(shown - expected) > tolerance:
+                            wrong.append((slug, t, heading, code, k, shown, round(float(expected), 2)))
+    assert checked > 1000, f'only {checked} ranking figures could be matched to the data'
+    assert not wrong, f'{len(wrong)} ranking figures the data disagrees with: {wrong[:6]}'
+
+
+def test_the_ranking_rows_are_local_authorities_and_nothing_else(ranking_pages, meta):
+    """A ranking of local authorities with Surrey in it is a ranking of nothing.
+
+    The aggregates sit after the boundaries in meta.areas and have prices like
+    everything else, so a loop that ran to the end of the list rather than to
+    geoAreas would rank the UK against Burnley without a murmur.
+    """
+    lads = {a['c'] for a in meta['areas'][:meta['geoAreas']]}
+    strays = []
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            for heading, rows in _rank_tables(html, t):
+                strays += [(slug, heading, code) for _, code, _ in rows if code not in lads]
+    assert not strays, f'ranking rows that are not local authorities: {strays[:6]}'
+
+
+def test_the_ranking_sections_hold_only_their_own_country(ranking_pages, meta):
+    """The Scotland table has to be Scottish, and London has to be boroughs -
+    an English district in the Wales list is the kind of wrong a reader from
+    Wales spots in a second and never trusts the page again after."""
+    prefix = {'England': ('E',), 'Scotland': ('S',), 'Wales': ('W',),
+              'Northern Ireland': ('N',), 'London': ('E09',)}
+    misplaced = []
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            for heading, rows in _rank_tables(html, t):
+                country = next((name for name in prefix if heading.endswith(f' in {name}')), None)
+                if country is None:
+                    continue
+                misplaced += [(slug, heading, code) for _, code, _ in rows
+                              if not code.startswith(prefix[country])]
+    assert not misplaced, f'rows in the wrong country\'s table: {misplaced[:6]}'
+
+
+def test_the_ranking_tables_count_from_one_without_gaps(ranking_pages, meta):
+    """Ranks run 1, 2, 3 in every table, to the length the page promises: the
+    national list is 'The 25 ...' in its heading, and each country's is a top
+    ten unless the country has fewer areas than that."""
+    wrong = []
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            for heading, rows in _rank_tables(html, t):
+                ranks = [r for r, _, _ in rows]
+                limit = RANK_TOP if heading.startswith('The ') else RANK_SECTION
+                if ranks != list(range(1, len(ranks) + 1)) or len(ranks) > limit:
+                    wrong.append((slug, t, heading, ranks[:3], len(ranks)))
+                if len({code for _, code, _ in rows}) != len(rows):
+                    wrong.append((slug, t, heading, 'an area listed twice'))
+    assert not wrong, f'tables whose ranks do not run 1..N: {wrong[:6]}'
+
+
+def test_the_ranking_verdict_counts_add_up(ranking_pages, meta, prices):
+    """'30 are up and 330 are down' is the sentence the page exists for, and it
+    is assembled from the same figures as the table, so it can only be wrong if
+    the two have been counted differently. Recounted here from the export."""
+    wrong = []
+    for slug, html in ranking_pages.items():
+        if slug not in ('rising-fastest', 'falling-most'):
+            continue
+        for t in range(len(meta['types'])):
+            _, real = _series(meta, prices, t)
+            five = _pct_change(real, 60)
+            finite = five[np.isfinite(five)]
+            block = _type_block(html, t)
+            said = re.search(r'Of the (\d+) local authorities with a figure, <b>(\d+)</b> are up '
+                             r'in real terms over those five years and <b>(\d+)</b> are down', block)
+            if not said:
+                wrong.append((slug, t, 'no verdict'))
+                continue
+            total, up, down = (int(v) for v in said.groups())
+            if (total, up, down) != (len(finite), int((finite > 0).sum()), int((finite <= 0).sum())):
+                wrong.append((slug, t, (total, up, down),
+                              (len(finite), int((finite > 0).sum()), int((finite <= 0).sum()))))
+    assert not wrong, f'verdicts whose counts the data disagrees with: {wrong}'
+
+
+def test_the_map_legend_ends_are_the_ramp_bounds(ranking_pages, meta, prices):
+    """The two numbers under the map say what its darkest colours mean. The
+    change maps are symmetric about the tenth largest absolute change, and the
+    price maps run between the ninth area from each end - as on the homepage,
+    and recomputed here so the legend cannot drift from the picture."""
+    wrong = []
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            nominal, real = _series(meta, prices, t)
+            block = _type_block(html, t)
+            ends = re.findall(r'<span class="pg-map-end">([^<]+)</span>', block)
+            if len(ends) != 2:
+                wrong.append((slug, t, f'{len(ends)} legend ends'))
+                continue
+            lo, hi = (_number(v) for v in ends)
+            if slug in ('cheapest', 'most-expensive'):
+                finite = np.sort(nominal[:, -1][np.isfinite(nominal[:, -1])])
+                trim = min(9, len(finite) // 20)
+                expected = (finite[trim], finite[-1 - trim])
+                tolerance = PRICE_TOLERANCE
+            else:
+                five = _pct_change(real, 60)
+                magnitudes = np.sort(np.abs(five[np.isfinite(five)]))[::-1]
+                bound = max(magnitudes[min(9, len(magnitudes) - 1)], 0.1)
+                expected = (-bound, bound)
+                tolerance = 0.51            # printed to the whole percent
+            if abs(lo - expected[0]) > tolerance or abs(hi - expected[1]) > tolerance:
+                wrong.append((slug, t, (lo, hi), tuple(round(float(v), 1) for v in expected)))
+    assert not wrong, f'map legends that do not match the ramp bounds: {wrong}'
+
+
+def test_the_map_colours_agree_with_the_values(ranking_pages, meta, prices):
+    """Each area's shade on the map, recomputed from the data.
+
+    The image is the one part of these pages that has no numbers on it, so a
+    slip in the binning - the wrong bound, the sequential floor left off, an
+    area coloured from its neighbour's row - shows as a plausible map and
+    nothing else. The paths are written in area order, so the k-th path is
+    area k, and its class is the bin its value falls in.
+    """
+    lads = meta['geoAreas']
+    wrong, checked = [], 0
+    for slug, html in ranking_pages.items():
+        for t in range(len(meta['types'])):
+            nominal, real = _series(meta, prices, t)
+            block = _type_block(html, t)
+            src = re.search(r'<img src="/house-prices/maps/([^"]+)"', block)
+            if not src:
+                continue
+            classes = re.findall(r'<path class="([^"]+)"', _read(MAPS / src.group(1)))
+            if len(classes) != lads:
+                wrong.append((slug, t, f'{len(classes)} paths for {lads} areas'))
+                continue
+
+            if slug in ('cheapest', 'most-expensive'):
+                values = nominal[:, -1]
+                finite = np.sort(values[np.isfinite(values)])
+                trim = min(9, len(finite) // 20)
+                lo, hi = finite[trim], finite[-1 - trim]
+                normalised = SEQ_FLOOR + (1 - SEQ_FLOOR) * np.clip((values - lo) / (hi - lo), 0, 1)
+            else:
+                values = _pct_change(real, 60)
+                magnitudes = np.sort(np.abs(values[np.isfinite(values)]))[::-1]
+                bound = max(magnitudes[min(9, len(magnitudes) - 1)], 0.1)
+                normalised = np.clip(values / bound, -1, 1)
+
+            for area, cls in enumerate(classes):
+                checked += 1
+                if not np.isfinite(values[area]):
+                    if cls != 'n':
+                        wrong.append((slug, t, area, cls, 'should be no-data'))
+                    continue
+                expected = round((normalised[area] + 1) / 2 * (RAMP_BINS - 1))
+                # A value on a bin boundary can round either way
+                if cls == 'n' or abs(int(cls[1:]) - expected) > 1:
+                    wrong.append((slug, t, area, cls, f'c{expected}'))
+    assert checked, 'no map could be matched to a page'
+    assert not wrong, f'{len(wrong)} areas shaded for the wrong value: {wrong[:6]}'
+
+
+def test_the_ranking_titles_carry_the_year_of_the_data(ranking_pages, meta):
+    """The year is in the title because people type it, and it is only worth
+    having while it is right: a page called 'cheapest house prices 2025' in
+    2026 says the list is a year stale, whether or not it is."""
+    year = _month_labels(meta)[-1][-4:]
+    stale = []
+    for slug, html in ranking_pages.items():
+        title = re.search(r'<title>(.*?)</title>', html, re.S).group(1)
+        h1 = re.search(r'<h1>(.*?)</h1>', html, re.S).group(1)
+        if year not in title or not h1.endswith(year):
+            stale.append((slug, title, h1))
+    assert not stale, f'ranking pages not carrying the data year {year}: {stale}'
