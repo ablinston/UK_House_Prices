@@ -1396,6 +1396,52 @@ select:focus-visible {
 	.pg-stat-value { font-size: 23px; }
 }
 
+/* ----- the ranking pages ----- */
+
+/* The map is an image: tall and narrow, since so is the country. It is capped
+   to the height of a screen so the list is never a page-height away, and the
+   legend under it reuses the homepage's own ramp and swatch. */
+.pg-map { margin: 26px 0 0; text-align: center; }
+
+.pg-map img {
+	display: inline-block;
+	width: auto;
+	max-width: 100%;
+	height: auto;
+	max-height: 78vh;
+}
+
+.pg-map figcaption {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	align-items: center;
+	gap: 8px 18px;
+	margin-top: 10px;
+	font-size: 12.5px;
+	color: var(--text-subtle);
+}
+
+.pg-map-what { flex-basis: 100%; color: var(--text-muted); }
+.pg-map-scale { display: flex; align-items: center; gap: 8px; }
+.pg-map-end { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 500; }
+.pg-map-nodata { display: flex; align-items: center; gap: 6px; }
+
+/* The rank is a number and nothing else, so it takes no more room than one:
+   narrow, muted, and set right so the tens line up under the units. */
+.pg-ranking .pg-rank-n {
+	width: 1.5em;
+	padding-right: 4px;
+	text-align: right;
+	color: var(--text-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.pg-ranking tbody th a { color: inherit; text-decoration: none; }
+.pg-ranking tbody th a:hover { color: var(--accent-bright); text-decoration: underline; }
+
+.pg-rankings { margin-bottom: 8px; }
+
 /* The property-type picker on an area page, and the five blocks it switches
    between. Every type is in the markup and only one is shown, so the attribute
    is what does the hiding — spelled out with !important because the blocks it

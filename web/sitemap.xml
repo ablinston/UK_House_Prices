@@ -11,6 +11,26 @@
     <changefreq>monthly</changefreq>
   </url>
   <url>
+    <loc>https://realhouseprices.uk/house-prices/cheapest/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://realhouseprices.uk/house-prices/most-expensive/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://realhouseprices.uk/house-prices/rising-fastest/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://realhouseprices.uk/house-prices/falling-most/</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
     <loc>https://realhouseprices.uk/house-prices/england/</loc>
     <lastmod>2026-09-11</lastmod>
     <changefreq>monthly</changefreq>

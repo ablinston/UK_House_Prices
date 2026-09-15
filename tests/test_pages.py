@@ -38,6 +38,15 @@ MAX_DESCRIPTION = 165
 # difference either should ever have.
 PRICE_TOLERANCE = 1.0
 
+# The four ranking pages share the directory with the area pages and nothing
+# else about their shape: no chart, no entry in pages.json, no area behind the
+# slug. The checks that are about an area's own page run on 'area_pages'; the
+# ones about any page at all - a title, a canonical, the licence - run on
+# 'pages' and take the rankings in with everything else.
+RANKINGS = {'cheapest', 'most-expensive', 'rising-fastest', 'falling-most'}
+RANK_WINDOW = 60          # months, as in step 08
+MAPS = PAGES / 'maps'
+
 
 def _read(path):
     return path.read_text(encoding = 'utf-8')
@@ -50,6 +59,19 @@ def pages():
     found = {p.parent.name if p.parent != PAGES else '': _read(p)
              for p in PAGES.glob('**/index.html')}
     assert found, 'no pages found in web/house-prices'
+    return found
+
+
+@pytest.fixture(scope = 'session')
+def area_pages(pages):
+    return {slug: html for slug, html in pages.items() if slug not in RANKINGS}
+
+
+@pytest.fixture(scope = 'session')
+def ranking_pages(pages):
+    found = {slug: html for slug, html in pages.items() if slug in RANKINGS}
+    if not found:
+        pytest.skip('no ranking pages in web/house-prices - run step 08')
     return found
 
 
@@ -111,14 +133,14 @@ def test_every_page_is_its_own_canonical(pages):
     assert not wrong, f'pages whose canonical is not their own URL: {wrong}'
 
 
-def test_no_chart_came_out_empty(pages):
+def test_no_chart_came_out_empty(area_pages):
     """An area with no series draws a path with no 'd', which renders as a
     blank box rather than as an error - invisible unless it is looked for."""
-    empty = [slug for slug, html in pages.items()
+    empty = [slug for slug, html in area_pages.items()
              if 'pg-real' in html and re.search(r'class="pg-real" d=""', html)]
     assert not empty, f'pages with an empty chart: {empty}'
 
-    missing = [slug for slug, html in pages.items() if 'pg-real' not in html]
+    missing = [slug for slug, html in area_pages.items() if 'pg-real' not in html]
     assert not missing, f'pages with no chart at all: {missing}'
 
 
@@ -276,7 +298,7 @@ def test_the_homepage_links_to_the_area_pages():
         'reachable only from the sitemap')
 
 
-def test_the_page_map_matches_the_pages_on_disk(pages):
+def test_the_page_map_matches_the_pages_on_disk(area_pages):
     """The app reads this to decide whether to offer a link through.
 
     An entry with no page behind it is a 404 handed to a reader who trusted the
@@ -289,11 +311,11 @@ def test_the_page_map_matches_the_pages_on_disk(pages):
 
     dead = {code: url for code, url in mapping.items()
             if url.strip('/').split('/')[-1] != 'house-prices'
-            and url.strip('/').split('/')[-1] not in pages}
+            and url.strip('/').split('/')[-1] not in area_pages}
     assert not dead, f'page map entries with no page behind them: {dead}'
 
     linked = {url.strip('/').split('/')[-1] for url in mapping.values()}
-    unoffered = sorted(slug for slug in pages
+    unoffered = sorted(slug for slug in area_pages
                        if slug and slug not in linked)
     assert not unoffered, f'pages the app is never told about: {unoffered}'
 
@@ -617,7 +639,7 @@ def test_every_page_has_its_own_title_and_description(pages):
     assert not shared_descs, f'pages sharing a description: {shared_descs}'
 
 
-def test_no_page_is_left_over_from_a_renamed_area(pages, meta):
+def test_no_page_is_left_over_from_a_renamed_area(area_pages, meta):
     """Step 08 clears these, and this is what notices if it stops.
 
     A reorganisation renames areas, and nothing would overwrite the old page -
@@ -630,7 +652,7 @@ def test_no_page_is_left_over_from_a_renamed_area(pages, meta):
             continue
         expected.add(re.sub(r'[^a-z0-9]+', '-', area['n'].lower()).strip('-'))
 
-    orphans = sorted(slug for slug in pages if slug and slug not in expected)
+    orphans = sorted(slug for slug in area_pages if slug and slug not in expected)
     assert not orphans, f'pages for areas that are no longer in the data: {orphans}'
 
 
@@ -658,3 +680,83 @@ def test_the_page_says_counties_not_county(pages):
             wrong.append((slug, f'"{rank.group(1)} {rank.group(2)}"'))
 
     assert not wrong, f'pages with a singular where a plural belongs: {wrong[:6]}'
+
+
+####################
+# The ranking pages
+
+def test_every_ranking_page_has_its_map_on_disk(ranking_pages):
+    """The map is an image the page points at, so a missing or broken file is a
+    blank space where the map should be and no error anywhere."""
+    missing, broken = [], []
+    for slug, html in ranking_pages.items():
+        for src in re.findall(r'<img src="/house-prices/maps/([^"]+)"', html):
+            path = MAPS / src
+            if not path.exists():
+                missing.append((slug, src))
+                continue
+            svg = _read(path)
+            if svg.count('<path ') < 300 or '@media (prefers-color-scheme: dark)' not in svg:
+                broken.append((slug, src))
+    assert not missing, f'maps the pages point at that are not on disk: {missing}'
+    assert not broken, f'maps with too few areas or only one theme: {broken}'
+
+
+def test_the_ranking_tops_are_the_extremes_in_the_data(ranking_pages, meta, prices):
+    """Whoever is first on each list has to be first in the matrix.
+
+    The order is the whole page. A ranking that put the second cheapest area at
+    the top would read exactly like one that had it right, so the top row of
+    the overall list is recomputed here from the export - the price for the two
+    price pages, the five-year real change for the two movement pages.
+    """
+    cpi = np.array(meta['cpi'], dtype = float)
+    lads = meta['geoAreas']
+    latest = prices[0][:lads, -1]
+    real = prices[0][:lads] / cpi[None, :]
+    five = (real[:, -1] / real[:, -1 - RANK_WINDOW] - 1) * 100
+
+    def top_row(html):
+        block = re.search(r'<div class="pg-type" data-type="0">(.*?)</div>', html, re.S).group(1)
+        row = re.search(r'<td class="pg-rank-n">1</td><th scope="row"><a href="[^"]*">([^<]+)</a></th>'
+                        r'<td class="pg-num[^"]*">([^<]+)</td>', block)
+        return row.group(1), row.group(2)
+
+    names = [a['n'] for a in meta['areas'][:lads]]
+    expected = {'cheapest': names[int(np.nanargmin(latest))],
+                'most-expensive': names[int(np.nanargmax(latest))],
+                'rising-fastest': names[int(np.nanargmax(five))],
+                'falling-most': names[int(np.nanargmin(five))]}
+
+    wrong = []
+    for slug, html in ranking_pages.items():
+        name, value = top_row(html)
+        if name != expected[slug]:
+            wrong.append((slug, name, expected[slug]))
+    assert not wrong, f'ranking pages whose first row is not the extreme in the data: {wrong}'
+
+
+def test_the_ranking_lists_are_in_order(ranking_pages):
+    """Each table's first column has to run one way, whichever way that is:
+    a list that is nearly sorted is the kind of wrong nobody notices."""
+    disordered = []
+    for slug, html in ranking_pages.items():
+        for table in re.findall(r'<table class="pg-table pg-ranking">(.*?)</table>', html, re.S):
+            values = []
+            for cell in re.findall(r'</th><td class="pg-num[^"]*">([^<]+)</td>', table):
+                text = cell.replace('£', '').replace(',', '').replace('%', '').replace('+', '')
+                values.append(float(text))
+            if values != sorted(values) and values != sorted(values, reverse = True):
+                disordered.append(slug)
+                break
+    assert not disordered, f'ranking pages with a table out of order: {disordered}'
+
+
+def test_the_index_and_sitemap_carry_the_rankings(pages, sitemap_urls):
+    index = pages.get('')
+    unlisted = sorted(slug for slug in RANKINGS
+                      if f'href="/house-prices/{slug}/"' not in index)
+    assert not unlisted, f'rankings the index does not link to: {unlisted}'
+    absent = sorted(slug for slug in RANKINGS
+                    if f'{SITE}/house-prices/{slug}/' not in sitemap_urls)
+    assert not absent, f'rankings missing from the sitemap: {absent}'
