@@ -534,7 +534,7 @@ def type_picker():
 
 
 def data_toggle():
-    """'Show data' and the empty region it fills. The table itself is built by
+    """'Show chart data' and the empty region it fills. The table itself is built by
     the script from the figures' attributes rather than written here: with all
     five types it would be four thousand cells of hidden markup on every page,
     for a thing most readers never open. Hidden until the script unhides it,
@@ -543,7 +543,7 @@ def data_toggle():
     prices are quoted in, which the table heading says in full."""
     return (f'<div class="pg-data">'
             f'<button type="button" class="pg-data-toggle" aria-expanded="false" '
-            f'aria-controls="price-data" data-base="{esc(CPI_BASE)}" hidden>Show data</button>'
+            f'aria-controls="price-data" data-base="{esc(CPI_BASE)}" hidden>Show chart data</button>'
             f'<div class="pg-table-wrap pg-data-table" id="price-data" hidden></div>'
             f'</div>')
 
@@ -554,7 +554,7 @@ def type_script():
     The select only decides which type is on show; every type is already in the
     markup, so with JavaScript off it does nothing and the page stays on
     Overall. The hover readout puts the month under the pointer into the legend,
-    which otherwise keeps showing the latest month. And 'Show data' lays the
+    which otherwise keeps showing the latest month. And 'Show chart data' lays the
     numbers carried on the selected type's figure out as a table, latest month
     first, rebuilt if the type changes while it is open.
     """
@@ -658,7 +658,7 @@ def type_script():
       if (open) renderTable();
       table.hidden = !open;
       toggle.setAttribute('aria-expanded', String(open));
-      toggle.textContent = open ? 'Hide data' : 'Show data';
+      toggle.textContent = open ? 'Hide chart data' : 'Show chart data';
     });
   }
 

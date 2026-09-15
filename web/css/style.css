@@ -247,7 +247,7 @@ body {
 .area-page-link a:hover { background: var(--accent-bright); }
 .area-page-link a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 
-/* 'Show data' under the chart. It borrows the area pages' .pg-data classes
+/* 'Show chart data' under the chart. It borrows the area pages' .pg-data classes
    outright, since the stylesheet is shared; only the spacing differs, because
    here it sits above the page link rather than above prose. */
 .area-data { margin: 0 0 14px; }
@@ -1231,7 +1231,7 @@ select:focus-visible {
 
 .pg-figure.is-hover .pg-cursor { display: block; }
 
-/* 'Show data', and the table it opens. Quiet, and beside the chart rather
+/* 'Show chart data', and the table it opens. Quiet, and beside the chart rather
    than at the foot of the page: the figures are a secondary want, and as a
    solid button it competed with the one link that is meant to be pressed. The
    table is capped in height and scrolls inside its own frame, with the heading
@@ -1258,6 +1258,9 @@ select:focus-visible {
 .pg-data-table .pg-table { font-size: 13.5px; }
 .pg-data-table th, .pg-data-table td { padding: 7px 14px; }
 .pg-data-table thead th { position: sticky; top: 0; z-index: 1; }
+/* Every column past the month is a price, so its heading sits over the
+   figures' right edge rather than hanging off their left */
+.pg-data-table thead th:not(:first-child) { text-align: right; }
 .pg-data-table tbody th { font-weight: 500; color: var(--text-muted); }
 
 /* ----- tables ----- */

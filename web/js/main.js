@@ -285,7 +285,7 @@ function toggleDataTable() {
 	const open = el.dataTable.hidden;
 	el.dataTable.hidden = !open;
 	el.dataToggle.setAttribute('aria-expanded', String(open));
-	el.dataToggle.textContent = open ? 'Hide data' : 'Show data';
+	el.dataToggle.textContent = open ? 'Hide chart data' : 'Show chart data';
 	renderDataTable();
 }
 
