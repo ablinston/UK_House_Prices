@@ -1,5 +1,5 @@
 outs:
-- md5: cf3af5985761b094919eba8024cae15c
-  size: 9736
+- md5: e9ae08fafbe5c5f8f32a471a7d1bcd44
+  size: 9411
   hash: md5
   path: uk_cpi.parquet
